@@ -15,7 +15,7 @@ Download this repo as a zip, and install it as a normal Blender addon.
 
 ![Minimap header](https://i.ibb.co/LJyvk85/image.png)
 
-click the Minimap button in header of the node editor, and then click "Show minimap"
+click the Minimap button in the header of the node editor, and then click "Show minimap"
 
 ![Header contents](https://i.ibb.co/JtPT0Ks/image.png)
 
@@ -23,4 +23,3 @@ You can then play about with the values that control how the minimap is displaye
 
 ## Limitations
 * Currently, clicking the minimap will just center the view to fit all nodes. This is because I haven't been able to find a way to reliably set the view position from python without using an operator. If you know how to do this, please tell me :)
-* I haven't implemented any optimisations yet, so on large node trees, it can slow down redraw speeds quite noticably
