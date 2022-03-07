@@ -97,14 +97,17 @@ def vec_max(a, b):
     return V(max(e) for e in zip(a, b))
 
 
-def get_active_tree(context):
+def get_active_tree(context, area=None):
     """Get nodes from currently edited tree.
     If user is editing a group, space_data.node_tree is still the base level (outside group).
     context.active_node is in the group though, so if space_data.node_tree.nodes.active is not
     the same as context.active_node, the user is in a group.
     source: node_wrangler.py"""
 
-    tree = context.space_data.node_tree
+    if not area:
+        tree = context.space_data.node_tree
+    else:
+        tree = area.spaces[0].node_tree
 
     if tree.nodes.active:
         # Check recursively until we find the real active node_tree

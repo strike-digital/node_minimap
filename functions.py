@@ -1,7 +1,7 @@
 import gpu
 from mathutils import Vector as V
 from gpu_extras.batch import batch_for_shader
-from .helpers import Rectangle, vec_divide, vec_lerp
+from .helpers import Rectangle, vec_divide, vec_lerp, vec_min, vec_max, vec_multiply
 
 sh_2d = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
 sh_2d_uniform_float = sh_2d.uniform_float
@@ -19,12 +19,39 @@ def draw_quads_2d(seq, color):
     batch.draw(sh_2d)
 
 
+def get_batch_from_quads_2d(seq):
+    qseq, = [(x1, y1, y2, x1, y2, x2) for (x1, y1, y2, x2) in (seq,)]
+    batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq})
+    return batch
+
+
+def draw_quads_2d_batch(batch, color):
+    gpu.state.blend_set('ALPHA')
+    sh_2d_bind()
+    sh_2d_uniform_float("color", [*color])
+    batch.draw(sh_2d)
+
+
+def get_batch_lines_from_quad_2d(seq):
+    # top/bottom, left/right
+    # drawn in pairs of 2
+    qseq, = [(tl, bl, bl, br, br, tr, tr, tl) for (tl, tr, br, bl) in (seq,)]
+    batch = batch_for_shader(sh_2d, 'LINES', {'pos': qseq})
+    return batch
+
+
+def draw_lines_from_quad_2d_batch(batch, color, width):
+    gpu.state.line_width_set(width)
+    sh_2d_bind()
+    sh_2d_uniform_float("color", [*color])
+    batch.draw(sh_2d)
+
+
 def draw_lines_from_quad_2d(seq, color, width=1):
     # top/bottom, left/right
     # drawn in pairs of 2
     qseq, = [(tl, bl, bl, br, br, tr, tr, tl) for (tl, tr, br, bl) in (seq,)]
     batch = batch_for_shader(sh_2d, 'LINES', {'pos': qseq})
-    # bgl.glLineWidth(width)
     gpu.state.line_width_set(width)
     sh_2d_bind()
     sh_2d_uniform_float("color", [*color])
@@ -145,6 +172,34 @@ def pos_to_fac(coords, node_area):
     return fac
 
 
+def get_node_area(node_tree):
+    node_area = Rectangle((10000, 10000), (-1000, -1000))
+    if node_tree:
+        for node in node_tree.nodes:
+            dims = get_node_dims(node)
+            loc = get_node_loc(node)
+            node_area.min = vec_min(loc + V((0, dims.y)), node_area.min)
+            node_area.max = vec_max(loc + V((dims.x, 0)), node_area.max)
+    return node_area
+
+
+def get_map_area(context, area, node_area):
+    region = area.regions[0]
+    region_width = region.width - area.regions[1].width
+    prefs = get_prefs(context)
+    padding = V((prefs.offset[0], prefs.offset[1]))
+    x = y = min(region_width / (prefs.size + padding.x * 2), prefs.max_size)
+    size = V((prefs.size * x, prefs.size * y))
+    size.y *= (node_area.size.y / node_area.size.x)
+
+    area_size = V([region_width, region.height])
+    location = area_size - padding
+    min_co = V((location.x - size.x, location.y))
+    max_co = V((location.x, location.y + size.y))
+    map_area = Rectangle(min_co=min_co, max_co=max_co)
+    return map_area
+
+
 def node_area_to_map_area(coords, node_area, map_area):
     """Converts the coords from local node space to minmap space"""
     fac = pos_to_fac(coords, node_area)
@@ -152,13 +207,24 @@ def node_area_to_map_area(coords, node_area, map_area):
     return loc
 
 
-def draw_view_box(view_area, node_area, map_area):
+def get_node_rect(node, node_area, map_area, scale, loc):
+    dims = node.dimensions.copy()
+    dims.x = node.width
+    dims.y *= -1
+    dims = get_node_dims(node)
+    dims = vec_multiply(dims, scale)
+    loc = node_area_to_map_area(loc, node_area, map_area)
+    node_rect = Rectangle(loc, loc + dims)
+    return node_rect
+
+
+def draw_view_box(view_area, node_area, map_area, line_width=2):
     """Draw the box representing the 2D camera view"""
     view_area.min = node_area_to_map_area(view_area.min, node_area, map_area)
     view_area.max = node_area_to_map_area(view_area.max, node_area, map_area)
     view_box = Rectangle(view_area.min, view_area.max)
     view_box.crop(map_area)
-    draw_lines_from_quad_2d(view_box.coords, (0.75, 0.75, 0.75, 1), width=2)
+    draw_lines_from_quad_2d(view_box.coords, (0.75, 0.75, 0.75, 1), width=line_width)
 
 
 def get_area(self, context):
@@ -175,5 +241,9 @@ def get_prefs(context):
     return context.preferences.addons[__package__].preferences
 
 
+def get_minimap_cache(context):
+    return context.window_manager.minimap_cache
+
+
 def get_shader_cache(context):
-    return context.window_manager.minimap_cache.shader_cache
+    return get_minimap_cache(context).shader_cache

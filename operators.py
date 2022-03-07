@@ -1,19 +1,10 @@
 import bpy
 from mathutils import Vector as V
 from .functions import get_area, get_prefs
-from .draw_handlers import draw_callback_px
+from .draw_handlers import draw_callback_px, handler_create
 from .shader_cache import ShaderCache
 
 handlers = []
-
-
-def handler_create(self, context: bpy.types.Context):
-    """Initialize an operator for every visible node tree area that doesn have one yet"""
-    screen = context.screen
-    for area in screen.areas:
-        if area.type == "NODE_EDITOR" and str(area) not in self.areas:
-            self.areas.append(str(area))
-            bpy.ops.node.draw_area_minimap("INVOKE_DEFAULT", area=str(area), idx=len(self.areas) - 1)
 
 
 class MINIMAP_OT_InitDrawOperators(bpy.types.Operator):
@@ -70,7 +61,16 @@ class ModalDrawOperator(bpy.types.Operator):
 
     def modal(self, context, event: bpy.types.Event):
         area = get_area(self, context)
-        area.tag_redraw()
+
+        if not area:
+            bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
+            handlers.remove(self.handler)
+            return {'CANCELLED'}
+
+        try:
+            area.tag_redraw()
+        except AttributeError:
+            pass
 
         if event.type == 'MOUSEMOVE':
             # save the position relative to the area and relative to the window
@@ -82,14 +82,16 @@ class ModalDrawOperator(bpy.types.Operator):
             # I tried for ages to get dragging the minimap to move the view working,
             # but I couldn't figure out how to move the view predictably without using an operator,
             # If you know how please tell me :)
-            on_minimap = self.map_area.isinside(self.mouse_pos)
-            if on_minimap and event.value != "RELEASE":
-                # The default operator context doesn't update with the mouse moving, so construct it manually
-                override = bpy.context.copy()
-                override["area"] = area
-                override["space"] = area.spaces[0]
-                override["region"] = area.regions[3]
-                bpy.ops.node.view_all((override))
+            if self.map_area:
+                on_minimap = self.map_area.isinside(self.mouse_pos_abs)
+                # print(self.map_area, self.mouse_pos, on_minimap)
+                if on_minimap and event.value != "RELEASE":
+                    # The default operator context doesn't update with the mouse moving, so construct it manually
+                    override = bpy.context.copy()
+                    override["area"] = area
+                    override["space"] = area.spaces[0]
+                    override["region"] = area.regions[3]
+                    bpy.ops.node.view_all((override))
 
         elif event.type in {'ESC'}:
             bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
@@ -104,6 +106,8 @@ class ModalDrawOperator(bpy.types.Operator):
             self.report({'WARNING'}, "Node editor not found, cannot run operator")
             return {'CANCELLED'}
 
+        print("hoho")
+
         # the arguments we pass the the callback
         args = (self, context)
         # Add the region OpenGL drawing callback
@@ -114,6 +118,7 @@ class ModalDrawOperator(bpy.types.Operator):
         handlers.append(handler)
 
         self.mouse_pos = V((0, 0))
+        self.mouse_pos_abs = V((0, 0))
 
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}

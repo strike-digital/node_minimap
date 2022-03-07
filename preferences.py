@@ -1,15 +1,24 @@
 import bpy
-from .functions import get_prefs
+from .functions import get_prefs, get_shader_cache
 
 
 class MinimapAddonPrefs(bpy.types.AddonPreferences):
     bl_idname = __package__
 
-    size: bpy.props.IntProperty(default=300, min=0)
+    def update_minimap(self, context):
+        shader_cache = get_shader_cache(context)
+        if not shader_cache:
+            return
+        for area_cache in shader_cache.areas.values():
+            area_cache.tag_update = True
 
-    max_size: bpy.props.FloatProperty(default=1, min=0)
+    size: bpy.props.IntProperty(default=300, min=0, update=update_minimap)
 
-    offset: bpy.props.IntVectorProperty(default=(20, 20), size=2)
+    max_size: bpy.props.FloatProperty(default=1, min=0, update=update_minimap)
+
+    offset: bpy.props.IntVectorProperty(default=(20, 20), size=2, update=update_minimap)
+
+    only_top_level: bpy.props.BoolProperty(update=update_minimap)
 
     is_enabled: bpy.props.BoolProperty()
 
@@ -22,3 +31,4 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
         layout.prop(prefs, "size")
         layout.prop(prefs, "max_size")
         layout.prop(prefs, "offset")
+        layout.prop(prefs, "only_top_level")
