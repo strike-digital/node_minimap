@@ -21,7 +21,7 @@ class MINIMAP_OT_InitDrawOperators(bpy.types.Operator):
         if prefs.is_enabled:
             # Need to find a way to disable it from an operator once it's running
             # Curently only way to stop it is to press escape
-            self.report({'WARNING'}, "Minimap is already running")
+            prefs.is_enabled = False
             return {'CANCELLED'}
 
         context.window_manager.minimap_cache.shader_cache = ShaderCache()
@@ -37,7 +37,8 @@ class MINIMAP_OT_InitDrawOperators(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        if event.type in {'ESC'}:
+        prefs = get_prefs(context)
+        if not prefs.is_enabled:
             bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
             handlers.remove(self.handler)
             prefs = get_prefs(context)
@@ -77,6 +78,7 @@ class ModalDrawOperator(bpy.types.Operator):
             self.mouse_pos = V((event.mouse_region_x - area.x, event.mouse_region_y - area.y))
             self.mouse_pos_abs = V((event.mouse_region_x, event.mouse_region_y))
 
+        prefs = get_prefs(context)
         if event.type == "LEFTMOUSE":
             # If the minimap is clicked center the view
             # I tried for ages to get dragging the minimap to move the view working,
@@ -93,10 +95,11 @@ class ModalDrawOperator(bpy.types.Operator):
                     override["region"] = area.regions[3]
                     bpy.ops.node.view_all((override))
 
-        elif event.type in {'ESC'}:
+        elif event.type in {'ESC'} or not prefs.is_enabled:
             bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
             handlers.remove(self.handler)
             area.tag_redraw()
+            prefs.is_enabled = False
             return {'CANCELLED'}
 
         return {'PASS_THROUGH'}
@@ -105,8 +108,6 @@ class ModalDrawOperator(bpy.types.Operator):
         if context.area.type != 'NODE_EDITOR':
             self.report({'WARNING'}, "Node editor not found, cannot run operator")
             return {'CANCELLED'}
-
-        print("hoho")
 
         # the arguments we pass the the callback
         args = (self, context)

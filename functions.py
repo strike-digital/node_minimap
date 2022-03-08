@@ -53,7 +53,7 @@ def draw_lines_from_quad_2d(sequence, color, width=1):
     batch.draw(sh_2d)
 
 
-def get_batch_lines_from_quad_2d(sequence) -> GPUBatch:
+def get_batch_lines_from_quads_2d(sequence) -> GPUBatch:
     """return the batch of the outline of a rectangle from the given coordinates"""
     # top/bottom, left/right
     # drawn in pairs of 2
@@ -62,7 +62,7 @@ def get_batch_lines_from_quad_2d(sequence) -> GPUBatch:
     return batch
 
 
-def draw_lines_from_quad_2d_batch(batch, color, width):
+def draw_lines_from_quads_2d_batch(batch, color, width):
     """Draw a rectangle line batch with the given color and width"""
     gpu.state.line_width_set(width)
     sh_2d_bind()
@@ -208,6 +208,8 @@ def get_map_area(context, area, node_area) -> Rectangle:
     padding = V((prefs.offset[0], prefs.offset[1]))
     x = y = min(region_width / (prefs.size + padding.x * 2), prefs.max_size)
     size = V((prefs.size * x, prefs.size * y))
+    size = min(max(region.width * prefs.size, prefs.min_size), prefs.max_size)
+    size = V((size, size))
     size.y *= (node_area.size.y / node_area.size.x)
 
     area_size = V([region_width, region.height])

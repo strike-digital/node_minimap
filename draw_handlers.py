@@ -3,12 +3,14 @@ from __future__ import annotations  # allow delayed annotation evaluation:
 
 import bpy
 from .helpers import Rectangle, get_active_tree
-from .functions import draw_quads_2d, draw_view_box, get_area, get_shader_cache
+from .functions import draw_lines_from_quads_2d_batch, draw_quads_2d_batch, draw_view_box, get_area, get_prefs,\
+    get_shader_cache
 from time import perf_counter
 from statistics import mean
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .operators import MINIMAP_OT_InitDrawOperators, ModalDrawOperator
+
 times = []
 main_times = []
 final = 0
@@ -59,23 +61,29 @@ def draw_callback_px(self: ModalDrawOperator, context: bpy.types.Context):
     if not node_tree:
         return
     node_tree = get_active_tree(context, area=area)
+    prefs = get_prefs(context)
 
     theme = context.preferences.themes[0].node_editor
     color = list(theme.grid)
     color.append(0.9)
+    color = prefs.background_color
 
     cache = get_shader_cache(context)
     area_cache = cache.areas[str(area)]
     area_cache.update(context, node_tree)
     map_area = self.map_area = area_cache.map_area
     node_area = self.node_area = area_cache.node_area
-    line_width = map_area.size.x / 250
+    line_width = map_area.size.x / 250 * prefs.line_width
 
-    draw_quads_2d(map_area.coords, color)
+    draw_quads_2d_batch(area_cache.quad_batch, color)
+    # draw_quads_2d(map_area.coords, color)
 
     if node_tree:
         for node_cache in area_cache.all_nodes:
             node_cache.draw_node(context, line_width)
+
+    # draw minimap outline
+    draw_lines_from_quads_2d_batch(area_cache.outline_batch, prefs.outline_color, line_width)
 
     # Draw the box representing the viewport camera
     region_to_view = context.region.view2d.region_to_view

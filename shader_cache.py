@@ -2,9 +2,8 @@ import bpy
 from typing import Dict, List
 from mathutils import Vector as V
 from .helpers import get_active_tree, get_alt_node_tree_name, vec_divide
-from .functions import draw_lines_from_quad_2d_batch, draw_quads_2d_batch, get_batch_from_quads_2d,\
-    get_batch_lines_from_quad_2d, get_map_area, get_node_area, get_node_color, get_node_loc, get_node_rect, get_prefs
-    
+from .functions import draw_lines_from_quads_2d_batch, draw_quads_2d_batch, get_batch_from_quads_2d,\
+    get_batch_lines_from_quads_2d, get_map_area, get_node_area, get_node_color, get_node_loc, get_node_rect, get_prefs
 """
 The caching system makes understanding how the minimap drawing works quite a lot harder, so if you want to do that,
 I'd advise getting the first release on GitHub, and looking at that first. It will be a lot slower though.
@@ -75,6 +74,8 @@ class AreaCache():
         self.update_areas(context, force=True)
         self.current_node_tree_name = self.node_tree.name
         self.tag_update = False
+        self.quad_batch = get_batch_from_quads_2d(self.map_area.coords)
+        self.outline_batch = get_batch_lines_from_quads_2d(self.map_area.coords)
 
     def update_areas(self, context, force=False):
         """Update cached node and map area
@@ -86,6 +87,8 @@ class AreaCache():
             self.node_area = get_node_area(self.node_tree)
             self.map_area = get_map_area(context, self.area, self.node_area)
             self.scale = vec_divide(self.map_area.size, self.node_area.size)
+            self.quad_batch = get_batch_from_quads_2d(self.map_area.coords)
+            self.outline_batch = get_batch_lines_from_quads_2d(self.map_area.coords)
             for node_cache in self.all_nodes:
                 node_cache.update_loc_dims(node_cache.node)
             self.region_size = current_size
@@ -170,6 +173,7 @@ class NodeCache():
             self.node_tree_name = get_alt_node_tree_name(node_tree)
         self.tree_type = node_tree.type
 
+        self.can_draw = self.check_can_draw(bpy.context)
         self.theme_color = get_node_color(bpy.context, node)
         self.visual_location = get_node_loc(node)
         self.node_rect = get_node_rect(
@@ -180,7 +184,7 @@ class NodeCache():
             self.visual_location,
         )
         self.batch = get_batch_from_quads_2d(self.node_rect.coords)
-        self.outline_batch = get_batch_lines_from_quad_2d(self.node_rect.coords)
+        self.outline_batch = get_batch_lines_from_quads_2d(self.node_rect.coords)
         self.is_frame_used = self.get_is_frame_used()
         theme = bpy.context.preferences.themes[0].node_editor
         self.active_color = list(theme.node_active) + [0.9]  # add alpha channel
@@ -212,26 +216,32 @@ class NodeCache():
                 return True
         return False
 
+    def check_can_draw(self, context):
+        prefs = get_prefs(context)
+        return not (not self.draw or\
+        (prefs.only_top_level and self.parent) or\
+        (not prefs.show_non_full_frames and self.is_frame and not self.is_frame_used) or\
+        (not prefs.show_non_frames and not self.is_frame))  # noqa
+
     def draw_node(self, context, line_width):
         """Draw this node using it's cached data"""
         prefs = get_prefs(context)
         # Check if node should be drawn
-        if not self.draw or\
-        (prefs.only_top_level and self.parent) or\
-        (not prefs.show_non_full_frames and self.is_frame and not self.is_frame_used):  # noqa
+        if not self.can_draw:
             return
 
         # Get the color. This is slow and needs to be cached
         node = self.node
+        color = self.theme_color if prefs.use_node_colors or node.use_custom_color else prefs.node_color
 
         # draw the box for each node
-        draw_quads_2d_batch(self.batch, self.theme_color)
+        draw_quads_2d_batch(self.batch, color)
         # draw outlines
         node_tree = node.id_data
         if node == node_tree.nodes.active:
-            draw_lines_from_quad_2d_batch(self.outline_batch, self.active_color, line_width)
+            draw_lines_from_quads_2d_batch(self.outline_batch, self.active_color, line_width)
         elif node.select:
-            draw_lines_from_quad_2d_batch(self.outline_batch, self.selected_color, line_width)
+            draw_lines_from_quads_2d_batch(self.outline_batch, self.selected_color, line_width)
 
     def update_loc_dims(self, node=None):
         """Update cached data relating to location and size"""
@@ -246,8 +256,9 @@ class NodeCache():
             self.visual_location,
         )
         self.batch = get_batch_from_quads_2d(self.node_rect.coords)
-        self.outline_batch = get_batch_lines_from_quad_2d(self.node_rect.coords)
+        self.outline_batch = get_batch_lines_from_quads_2d(self.node_rect.coords)
         self.is_frame_used = self.get_is_frame_used()
+        self.can_draw = self.check_can_draw(bpy.context)
         self.parent = node.parent
 
     def update_color(self, node):
