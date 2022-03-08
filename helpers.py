@@ -1,4 +1,5 @@
 import bpy
+from bpy.types import NodeTree, Area, Region
 from mathutils import Vector as V
 
 
@@ -20,6 +21,7 @@ class Rectangle():
 
     @property
     def coords(self):
+        """Return corrdinates for drawing"""
         coords = [
             (self.minx, self.miny),
             (self.maxx, self.miny),
@@ -52,7 +54,8 @@ class Rectangle():
             value = V((value, value))
         return Rectangle(self.min + value, self.max + value)
 
-    def isinside(self, point):
+    def isinside(self, point) -> bool:
+        """Check if a point is inside this rectangle"""
         point = V(point)
         for i in range(2):
             if (point[i] < self.min[i]) or (point[i] > self.max[i]):
@@ -67,37 +70,37 @@ class Rectangle():
         self.max = vec_max(self.max, rectangle.min)
 
 
-def lerp(fac, a, b):
+def lerp(fac, a, b) -> float:
     """Linear interpolation (mix) between two values"""
     return (fac * b) + ((1 - fac) * a)
 
 
-def vec_lerp(fac, a, b):
+def vec_lerp(fac, a, b) -> V:
     """Elementwise vector linear interpolation (mix) between two vectors"""
     return V(lerp(f, e1, e2) for f, e1, e2 in zip(fac, a, b))
 
 
-def vec_divide(a, b):
+def vec_divide(a, b) -> V:
     """Elementwise divide for two vectors"""
     return V(e1 / e2 if e2 != 0 else 0 for e1, e2 in zip(a, b))
 
 
-def vec_multiply(a, b):
+def vec_multiply(a, b) -> V:
     """Elementwise multiply for two vectors"""
     return V(e1 * e2 for e1, e2 in zip(a, b))
 
 
-def vec_min(a, b):
+def vec_min(a, b) -> V:
     """Elementwise minimum for two vectors"""
     return V(min(e) for e in zip(a, b))
 
 
-def vec_max(a, b):
+def vec_max(a, b) -> V:
     """Elementwise maximum for two vectors"""
     return V(max(e) for e in zip(a, b))
 
 
-def get_active_tree(context, area=None):
+def get_active_tree(context, area=None) -> NodeTree:
     """Get nodes from currently edited tree.
     If user is editing a group, space_data.node_tree is still the base level (outside group).
     context.active_node is in the group though, so if space_data.node_tree.nodes.active is not
@@ -120,7 +123,7 @@ def get_active_tree(context, area=None):
     return tree
 
 
-def get_active_area(context: bpy.types.Context, mouse_pos: V):
+def get_active_area(context: bpy.types.Context, mouse_pos: V) -> Area:
     """The area given by the context is locked to the area the operator is executed in,
     so this works it out from scratch"""
     screen = context.screen
@@ -131,7 +134,7 @@ def get_active_area(context: bpy.types.Context, mouse_pos: V):
     return context.area
 
 
-def get_active_region(context, mouse_pos):
+def get_active_region(context, mouse_pos) -> Region:
     """The region given by the context is locked to the area the operator is executed in,
     so this works it out from scratch"""
     area = get_active_area(context, mouse_pos)
@@ -140,3 +143,12 @@ def get_active_region(context, mouse_pos):
         if rect.isinside(mouse_pos):
             return region
     return context.region
+
+
+def get_alt_node_tree_name(node_tree) -> str:
+    """Get's the name of the parent data block for this node tree
+    Only necessary if the tree is attached to a material or scene (shading or compositing)"""
+    # "bpy.data.materials['Material'].node_tree"
+    # returns 'Material'
+    # Not a good way to do it, but I can't find a better one :(
+    return repr(node_tree.id_data).split("'")[1]

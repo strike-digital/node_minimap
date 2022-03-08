@@ -1,16 +1,20 @@
+from __future__ import annotations  # allow delayed annotation evaluation:
+# https://stackoverflow.com/questions/39740632/python-type-hinting-without-cyclic-imports
+
 import bpy
 from .helpers import Rectangle, get_active_tree
-from .functions import draw_quads_2d, draw_view_box, get_area, get_prefs, get_shader_cache
-from .shader_cache import NodeCache
+from .functions import draw_quads_2d, draw_view_box, get_area, get_shader_cache
 from time import perf_counter
 from statistics import mean
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .operators import MINIMAP_OT_InitDrawOperators, ModalDrawOperator
 times = []
 main_times = []
 final = 0
 
 
-def handler_create(self, context: bpy.types.Context):
+def handler_create(self: MINIMAP_OT_InitDrawOperators, context: bpy.types.Context):
     """Initialize an operator for every visible node tree area that doesn have one yet"""
     screen = context.screen
     start = perf_counter()
@@ -40,7 +44,7 @@ def handler_create(self, context: bpy.types.Context):
         main_times = []
 
 
-def draw_callback_px(self, context: bpy.types.Context):
+def draw_callback_px(self: ModalDrawOperator, context: bpy.types.Context):
     """Called by every operator when there's a redraw"""
     area = get_area(self, context)
     # the operator context.area remains the same even when the actual context is updated
@@ -66,18 +70,12 @@ def draw_callback_px(self, context: bpy.types.Context):
     map_area = self.map_area = area_cache.map_area
     node_area = self.node_area = area_cache.node_area
     line_width = map_area.size.x / 250
+
     draw_quads_2d(map_area.coords, color)
 
-    prefs = get_prefs(context)
     if node_tree:
         for node_cache in area_cache.all_nodes:
-            node_cache: NodeCache
-            if prefs.only_top_level:
-                if not node_cache.parent and node_cache.draw:
-                    node_cache.draw_node(context, line_width)
-            else:
-                if node_cache.draw:
-                    node_cache.draw_node(context, line_width)
+            node_cache.draw_node(context, line_width)
 
     # Draw the box representing the viewport camera
     region_to_view = context.region.view2d.region_to_view

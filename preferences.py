@@ -19,6 +19,8 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
     offset: bpy.props.IntVectorProperty(default=(20, 20), size=2, update=update_minimap)
 
     only_top_level: bpy.props.BoolProperty(update=update_minimap)
+    
+    show_non_full_frames: bpy.props.BoolProperty(update=update_minimap)
 
     is_enabled: bpy.props.BoolProperty()
 
@@ -32,3 +34,4 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
         layout.prop(prefs, "max_size")
         layout.prop(prefs, "offset")
         layout.prop(prefs, "only_top_level")
+        layout.prop(prefs, "show_non_full_frames")
