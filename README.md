@@ -13,11 +13,11 @@ Download this repo as a zip, and install it as a normal Blender addon.
 
 ## Usage
 
-![Minimap header](https://i.ibb.co/LJyvk85/image.png)
+![Minimap header](https://i.ibb.co/hZ4Tpyc/image.png)
 
 click the Minimap button in the header of the node editor, and then click "Show minimap"
 
-![Header contents](https://i.ibb.co/JtPT0Ks/image.png)
+![Header contents](https://i.ibb.co/C62vKQd/image.png)
 
 You can then play about with the values that control how the minimap is displayed.
 
