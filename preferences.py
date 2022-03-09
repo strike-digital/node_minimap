@@ -101,6 +101,14 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
         update=update_minimap,
     )
 
+    zoom_to_nodes: bpy.props.BoolProperty(
+        name="Zoom to nodes (can be slow)",
+        description="""When a node is clicked in the minimap, focus on that node. Be aware that this causes a scene \
+update, so it's best to turn this off when using node trees that take a long time to evaluate""",
+        default=True,
+        update=update_minimap,
+    )
+
     show_non_full_frames: bpy.props.BoolProperty(
         name="Show non full frames",
         description="""Whether to show frames that don't contain any nodes. There currently isn't a good way to get\
@@ -177,6 +185,15 @@ the location of these nodes from the python api, so if this is on, they may appe
         draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
+        if len(context.space_data.node_tree.nodes) > 100 and prefs.zoom_to_nodes:
+            row = col.row(align=True)
+            box = col.box().column(align=True)
+            row.alert = True
+            box.label(text="This node tree has more than 100")
+            box.label(text="nodes, evaluation may be slow")
+        else:
+            row = col.row(align=True)
+        draw_inline_prop(row, prefs, "zoom_to_nodes", factor=factor, alignment="LEFT")
 
         layout.separator()
         col = draw_section(layout, title="Shape")
@@ -197,8 +214,10 @@ the location of these nodes from the python api, so if this is on, they may appe
 
         layout.separator()
         col = draw_section(layout, title="Controls")
-        col.label(text="Double click to view all")
         col.label(text="Click and drag to pan the view")
+        col.label(text="Double click to view all")
+        if prefs.zoom_to_nodes:
+            col.label(text="Click on a node to zoom to it")
 
 
 @bpy.app.handlers.persistent

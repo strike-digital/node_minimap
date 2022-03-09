@@ -38,6 +38,17 @@ class Rectangle():
     def center(self):
         return self.min + vec_divide(self.max - self.min, V((2, 2)))
 
+    # return the actual min/max values. Needed because the class does not check
+    # if the min and max values given are actually min and max at init.
+    # I could fix it, but a bunch of stuff is built on it already, and I can't really be bothered
+    @property
+    def true_min(self):
+        return vec_min(self.min, self.max)
+
+    @property
+    def true_max(self):
+        return vec_max(self.min, self.max)
+
     def __str__(self):
         return f"Rectangle(V({self.minx}, {self.miny}), V({self.maxx}, {self.maxy}))"
 
@@ -57,8 +68,10 @@ class Rectangle():
     def isinside(self, point) -> bool:
         """Check if a point is inside this rectangle"""
         point = V(point)
+        min = self.true_min
+        max = self.true_max
         for i in range(2):
-            if (point[i] < self.min[i]) or (point[i] > self.max[i]):
+            if (point[i] < min[i]) or (point[i] > max[i]):
                 return False
         return True
 
