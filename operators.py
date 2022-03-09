@@ -1,5 +1,6 @@
 import bpy
 from mathutils import Vector as V
+from .helpers import vec_divide
 from .functions import get_area, get_prefs
 from .draw_handlers import draw_callback_px, handler_create
 from .shader_cache import ShaderCache
@@ -75,8 +76,13 @@ class ModalDrawOperator(bpy.types.Operator):
 
         if event.type == 'MOUSEMOVE':
             # save the position relative to the area and relative to the window
+            self.prev_mouse_pos = self.mouse_pos
             self.mouse_pos = V((event.mouse_region_x - area.x, event.mouse_region_y - area.y))
             self.mouse_pos_abs = V((event.mouse_region_x, event.mouse_region_y))
+
+        on_minimap = False
+        if self.map_area:
+            on_minimap = self.map_area.isinside(self.mouse_pos_abs)
 
         prefs = get_prefs(context)
         if event.type == "LEFTMOUSE":
@@ -84,23 +90,51 @@ class ModalDrawOperator(bpy.types.Operator):
             # I tried for ages to get dragging the minimap to move the view working,
             # but I couldn't figure out how to move the view predictably without using an operator,
             # If you know how please tell me :)
-            if self.map_area:
-                on_minimap = self.map_area.isinside(self.mouse_pos_abs)
-                # print(self.map_area, self.mouse_pos, on_minimap)
-                if on_minimap and event.value != "RELEASE":
+            if on_minimap and event.value != "RELEASE":
+                print(self.prev_events)
+                if event.type in self.prev_events:
                     # The default operator context doesn't update with the mouse moving, so construct it manually
                     override = bpy.context.copy()
                     override["area"] = area
                     override["space"] = area.spaces[0]
                     override["region"] = area.regions[3]
                     bpy.ops.node.view_all((override))
+                context.window.cursor_modal_set("SCROLL_XY")
+                self.is_panning = True
+
+            if event.value == "RELEASE":
+                context.window.cursor_modal_restore()
+                self.is_panning = False
 
         elif event.type in {'ESC'} or not prefs.is_enabled:
+            context.window.cursor_modal_restore()
             bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
             handlers.remove(self.handler)
             area.tag_redraw()
             prefs.is_enabled = False
             return {'CANCELLED'}
+
+        if self.is_panning:
+            override = bpy.context.copy()
+            override["area"] = area
+            override["space"] = area.spaces[0]
+            override["region"] = area.regions[3]
+            delta = self.mouse_pos - self.prev_mouse_pos
+            multiplier = 1 + (1 - prefs.size)
+            delta *= multiplier * (self.map_area.size.x / self.view_area.size.x)
+            bpy.ops.view2d.pan((override), deltax=delta.x, deltay=delta.y)
+            return {'RUNNING_MODAL'}
+        else:
+            if on_minimap:
+                context.window.cursor_modal_set("SCROLL_XY")
+                # if event.type not in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
+                self.prev_events.insert(0, event.type)
+                if len(self.prev_events) > 4:
+                    del self.prev_events[-1]
+                if event.type == 'MOUSEMOVE':
+                    return {'RUNNING_MODAL'}
+            else:
+                context.window.cursor_modal_restore()
 
         return {'PASS_THROUGH'}
 
@@ -118,8 +152,12 @@ class ModalDrawOperator(bpy.types.Operator):
         global handlers
         handlers.append(handler)
 
+        self.map_area = None
+        self.prev_mouse_pos = V((0, 0))
         self.mouse_pos = V((0, 0))
         self.mouse_pos_abs = V((0, 0))
+        self.is_panning = False
+        self.prev_events = []
 
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}

@@ -1,4 +1,5 @@
 import bpy
+from . import operators
 from .functions import get_minimap_cache, get_prefs, get_shader_cache
 
 
@@ -171,6 +172,13 @@ the location of these nodes from the python api, so if this is on, they may appe
             row.operator("node.enable_minimap", depress=prefs.is_enabled, icon=icon, text="Show minimap      ")
             layout.separator()
 
+        factor = 0.9
+        col = draw_section(layout, title="Performance")
+        draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
+        draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
+        draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
+
+        layout.separator()
         col = draw_section(layout, title="Shape")
         factor = 0.3
         draw_inline_prop(col, prefs, "size", "Scale", factor=factor)
@@ -188,17 +196,18 @@ the location of these nodes from the python api, so if this is on, they may appe
             draw_inline_prop(col, prefs, "node_color")
 
         layout.separator()
-        factor = 0.9
-        col = draw_section(layout, title="Performance")
-        draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
-        draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
-        draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
+        col = draw_section(layout, title="Controls")
+        col.label(text="Double click to view all")
+        col.label(text="Click and drag to pan the view")
 
 
 @bpy.app.handlers.persistent
 def on_load(_0, _1):
+    prefs = get_prefs(bpy.context)
+    prefs.is_enabled = False
     minimap_cache = get_minimap_cache(bpy.context)
     minimap_cache.shader_cache = None
+    operators.unregister()
 
 
 def register():
