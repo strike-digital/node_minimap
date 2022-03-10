@@ -13,17 +13,38 @@ sh_2d = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
 sh_2d_uniform_float = sh_2d.uniform_float
 sh_2d_bind = sh_2d.bind
 
+# shader_file = Path(__file__).parent / "rounded_rectangle_vert.glsl"
+# with open(shader_file, "r") as f:
+#     vertex_shader = f.read()
+
+# shader_file = Path(__file__).parent / "rounded_rectangle_frag.glsl"
+# with open(shader_file, "r") as f:
+#     fragment_shader = f.read()
+
+# shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+
 
 # graciously stolen from the amazing code_editor addon
 # https://github.com/K-410/blender-scripts/blob/master/2.8/code_editor.py
 def draw_quads_2d(sequence, color):
     """Draw a rectangle from the given coordinates"""
     qseq, = [(x1, y1, y2, x1, y2, x2) for (x1, y1, y2, x2) in (sequence,)]
-    batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq})
+    uv = [(0, 0, 1, 0, 1, 1) for (x1, y1, y2, x2) in (sequence,)]
+    batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq, 'uv': uv})
     gpu.state.blend_set('ALPHA')
-    sh_2d_bind()
-    sh_2d_uniform_float("color", [*color])
+    sh_2d()
+    sh_2d("color", [*color])
     batch.draw(sh_2d)
+
+
+# def get_batch_from_quads_2d(sequence) -> GPUBatch:
+#     """Return the batch for a rectangle from the given coordinates"""
+#     seq = sequence.copy()
+#     qseq, = [(x1, y1, y2, x1, y2, x2) for (x1, y1, y2, x2) in (seq,)]
+#     uv = [(0, 0, 1, 0, 1, 1) for (x1, y1, y2, x2) in (sequence,)]
+#     print(len(qseq), len(uv))
+#     batch = batch_for_shader(shader, 'TRIS', {'pos': qseq, "uv": qseq})
+#     return batch
 
 
 def get_batch_from_quads_2d(sequence) -> GPUBatch:
@@ -32,6 +53,19 @@ def get_batch_from_quads_2d(sequence) -> GPUBatch:
     batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq})
     return batch
 
+
+# def draw_quads_2d_batch(batch, color, min=(0, 0), max=(0, 0)):
+#     """Draw a rectangle batch with the given color"""
+#     gpu.state.blend_set('ALPHA')
+#     # sh_2d_bind()
+#     # sh_2d_uniform_float("color", [*color])
+#     shader.bind()
+#     shader.uniform_float("color", [*color])
+#     rect = Rectangle(min, max)
+#     shader.uniform_float("minimum", list(rect.min))
+#     shader.uniform_float("maximum", list(rect.max))
+#     shader.uniform_float("radius", [200, 200])
+#     batch.draw(shader)
 
 def draw_quads_2d_batch(batch, color):
     """Draw a rectangle batch with the given color"""

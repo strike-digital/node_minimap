@@ -3,11 +3,6 @@ This is a Blender addon that generates a minimap of the current node tree, allow
 
 ![Minimap demo](https://thumbs.gfycat.com/ColdMinorBoa-size_restricted.gif)
 
-
-## Warning
-This is a very early version, and almost certainly contains many bugs and problems, use at your own risk :)
-
-
 ## Installation
 Download this repo as a zip, and install it as a normal Blender addon.
 
@@ -21,5 +16,11 @@ click the Minimap button in the header of the node editor, and then click "Show 
 
 You can then play about with the values that control how the minimap is displayed.
 
+Controls:
+* Clicking and dragging on the minimap pans the view
+* Double-clicking the minimap centers the view to fit all nodes in the tree
+* Clicking on a single node will center on that node.
+
 ## Limitations
-* Currently, clicking the minimap will just center the view to fit all nodes. This is because I haven't been able to find a way to reliably set the view position from python without using an operator. If you know how to do this, please tell me :)
+* If you have an absolutely massive node tree (800 nodes plus), the responsiveness of the viewport will slow down significantly. There are a few options to improve this, but it will still be a bit slow on very large trees. This isn't something most people need to worry about though.
+
