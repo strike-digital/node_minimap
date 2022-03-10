@@ -91,7 +91,7 @@ def draw_callback_px(self: ModalDrawOperator, context: bpy.types.Context):
     view_max = region_to_view(context.region.width, context.region.height)
     view_area = Rectangle(view_min, view_max)
     self.view_area = view_area
-    draw_view_box(view_area, node_area, map_area, line_width)
+    draw_view_box(view_area, node_area, map_area, prefs.view_outline_color, line_width)
 
     # # Draw debug text in the bottom left
     # import blf

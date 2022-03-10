@@ -48,6 +48,15 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
         for area_cache in shader_cache.areas.values():
             area_cache.tag_update = True
 
+    def update_minimap_and_color(self, context):
+        shader_cache = get_shader_cache(context)
+        if not shader_cache:
+            return
+        for area_cache in shader_cache.areas.values():
+            area_cache.tag_update = True
+            for node in area_cache.all_nodes:
+                node.update_color(context, node.node)
+
     theme = bpy.context.preferences.themes[0].node_editor
 
     # size: bpy.props.IntProperty(default=300, min=0, update=update_minimap)
@@ -128,6 +137,17 @@ the location of these nodes from the python api, so if this is on, they may appe
         update=update_minimap,
     )
 
+    view_outline_color: bpy.props.FloatVectorProperty(
+        name="View outline color",
+        description="The color of the view box outline",
+        size=4,
+        subtype="COLOR",
+        default=(0.8, 0.8, 0.8, 1),
+        min=0,
+        max=1,
+        update=update_minimap,
+    )
+
     background_color: bpy.props.FloatVectorProperty(
         name="Background color",
         description="The color of the minimap background",
@@ -137,6 +157,16 @@ the location of these nodes from the python api, so if this is on, they may appe
         min=0,
         max=1,
         update=update_minimap,
+    )
+
+    node_transparency: bpy.props.FloatProperty(
+        name="Node Alpha",
+        description="How transparently the nodes will be drawn",
+        default=1,
+        min=0,
+        max=1,
+        subtype="FACTOR",
+        update=update_minimap_and_color,
     )
 
     line_width: bpy.props.FloatProperty(
@@ -207,7 +237,9 @@ the location of these nodes from the python api, so if this is on, they may appe
         col = draw_section(layout, title="Look")
         draw_inline_prop(col, prefs, "line_width")
         draw_inline_prop(col, prefs, "outline_color")
+        draw_inline_prop(col, prefs, "view_outline_color")
         draw_inline_prop(col, prefs, "background_color", "Background")
+        draw_inline_prop(col, prefs, "node_transparency")
         draw_inline_prop(col, prefs, "use_node_colors", "One node color", invert=True)
         if not prefs.use_node_colors:
             draw_inline_prop(col, prefs, "node_color")

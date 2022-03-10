@@ -210,7 +210,8 @@ def get_node_color(context, node) -> list[float]:
     color = list(color)
     if len(color) < 4:
         color.append(0.95)
-    color[3] = 1.0
+    prefs = get_prefs(context)
+    color[3] = prefs.node_transparency
     return color
 
 
@@ -273,13 +274,13 @@ def get_node_rect(node, node_area, map_area, scale, loc) -> Rectangle:
     return node_rect
 
 
-def draw_view_box(view_area, node_area, map_area, line_width=2):
+def draw_view_box(view_area, node_area, map_area, color, line_width=2):
     """Draw the box representing the 2D camera view"""
     view_area.min = node_area_to_map_area(view_area.min, node_area, map_area)
     view_area.max = node_area_to_map_area(view_area.max, node_area, map_area)
     view_box = Rectangle(view_area.min, view_area.max)
     view_box.crop(map_area)
-    draw_lines_from_quad_2d(view_box.coords, (0.75, 0.75, 0.75, 1), width=line_width)
+    draw_lines_from_quad_2d(view_box.coords, color, width=line_width)
 
 
 def get_area(self, context) -> Area:

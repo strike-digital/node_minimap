@@ -197,8 +197,12 @@ class NodeCache():
         nt = bpy.data.node_groups.get(self.node_tree_name)
         # Check if nt is bound to material or scene (shader or compositing)
         if not nt:
-            data = bpy.data.materials if self.tree_type == "SHADER" else bpy.data.scenes
-            nt = data[self.node_tree_name].node_tree
+            # Get node tree if it is a shader, compsitor or world nodetree,
+            # as these don't show up in bpy.data.node_groups
+            for tree_subtype in ["materials", "scenes", "worlds"]:
+                data = getattr(bpy.data, tree_subtype)
+                if self.node_tree_name in data.keys():
+                    nt = data[self.node_tree_name].node_tree
         return nt
 
     @property
@@ -261,10 +265,11 @@ class NodeCache():
         self.can_draw = self.check_can_draw(bpy.context)
         self.parent = node.parent
 
-    def update_color(self, node):
+    def update_color(self, context, node):
         """Update cached data relating to color"""
+        prefs = get_prefs(context)
         if node.use_custom_color:
-            self.theme_color = list(node.color) + [0.95]  # The alpha value
+            self.theme_color = list(node.color) + [prefs.node_transparency]  # The alpha value
         else:
             self.theme_color = get_node_color(bpy.context, node)
 
@@ -276,7 +281,7 @@ class NodeCache():
             self.width = node.width
             self.area_cache.tag_update = True
         if node.use_custom_color != self.use_custom_color or node.color != self.color:
-            self.update_color(node)
+            self.update_color(context, node)
             self.use_custom_color = node.use_custom_color
             self.color = node.color.copy()
 
