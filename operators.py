@@ -123,12 +123,18 @@ class ModalDrawOperator(bpy.types.Operator):
                 context.window.cursor_modal_set("SCROLL_XY")
                 self.is_panning = True
 
+            try:
+                area_cache = get_shader_cache(context).areas[str(area)]
+            except KeyError:
+                bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
+                handlers.remove(self.handler)
+                return {'CANCELLED'}
+
             # Zoom to node only if single click and not panning
             # To get whether it is a single click we need to look at the past events to see
             # whether is_panning was True then.
             # This can be slow on heavy node trees as setting which nodes are selected seems to update the depsgraph...
             # If anyone knows a way to stop this, it would be greatly appreciated
-            area_cache = get_shader_cache(context).areas[str(area)]
             if prefs.zoom_to_nodes:
                 if on_minimap and (self.prev_is_pannings[-1] is not True and "PRESS" in self.prev_event_values):
                     for node_cache in area_cache.all_nodes:
@@ -158,7 +164,7 @@ class ModalDrawOperator(bpy.types.Operator):
             delta = self.mouse_pos - self.prev_mouse_pos
             multiplier = 1 + (1 - prefs.size)
             delta *= multiplier * (self.map_area.size.x / self.view_area.size.x)
-            bpy.ops.view2d.pan((override), deltax=delta.x, deltay=delta.y)
+            bpy.ops.view2d.pan((override), deltax=int(delta.x), deltay=int(delta.y))
             return {'RUNNING_MODAL'}
         else:
             if on_minimap:
