@@ -210,7 +210,7 @@ def get_node_color(context, node) -> list[float]:
     color = list(color)
     if len(color) < 4:
         color.append(0.95)
-    color[3] = 0.95
+    color[3] = 1.0
     return color
 
 

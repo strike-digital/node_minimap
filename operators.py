@@ -71,6 +71,7 @@ class ModalDrawOperator(bpy.types.Operator):
     def modal(self, context, event: bpy.types.Event):
 
         prefs = get_prefs(context)
+        area = get_area(self, context)
         if event.type in {'ESC'} or not prefs.is_enabled:
             context.window.cursor_modal_restore()
             bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
@@ -78,8 +79,6 @@ class ModalDrawOperator(bpy.types.Operator):
             area.tag_redraw()
             prefs.is_enabled = False
             return {'CANCELLED'}
-
-        area = get_area(self, context)
 
         if not area:
             bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
