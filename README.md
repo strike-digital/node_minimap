@@ -1,7 +1,7 @@
 # Node Minimap
 This is a Blender addon that generates a minimap of the current node tree, allowing for easy navigation and readability
 
-![Minimap demo](https://thumbs.gfycat.com/ColdMinorBoa-size_restricted.gif)
+![Minimap demo](https://thumbs.gfycat.com/ConventionalColorfulAegeancat-size_restricted.gif)
 
 ## Installation
 

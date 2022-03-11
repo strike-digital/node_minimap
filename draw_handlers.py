@@ -9,7 +9,7 @@ from time import perf_counter
 from statistics import mean
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .operators import MINIMAP_OT_InitDrawOperators, ModalDrawOperator
+    from .operators import MINIMAP_OT_InitDrawOperators, MINIMAP_OT_DrawAreaMinimap
 
 times = []
 main_times = []
@@ -46,7 +46,7 @@ def handler_create(self: MINIMAP_OT_InitDrawOperators, context: bpy.types.Contex
         main_times = []
 
 
-def draw_callback_px(self: ModalDrawOperator, context: bpy.types.Context):
+def draw_callback_px(self: MINIMAP_OT_DrawAreaMinimap, context: bpy.types.Context):
     """Called by every operator when there's a redraw"""
     area = get_area(self, context)
     # the operator context.area remains the same even when the actual context is updated

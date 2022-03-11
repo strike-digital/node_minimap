@@ -262,6 +262,7 @@ def get_map_area(context, area, node_area) -> Rectangle:
     min_co = V((0, 0))
     max_co = V((0, 0))
 
+    # corner is a string in ["BL", "TR", "TL", "BR"] for bottom-left, top-right, etc.
     if "B" in corner:
         min_co.y = padding.y
         max_co.y = min_co.y + size.y

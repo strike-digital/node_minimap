@@ -45,6 +45,7 @@ def draw_inline_prop(
 class MinimapAddonPrefs(bpy.types.AddonPreferences):
     bl_idname = __package__
 
+    # Trigger the cache to update when a property is changed
     def update_minimap(self, context):
         shader_cache = get_shader_cache(context)
         if not shader_cache:
@@ -61,13 +62,45 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
             for node in area_cache.all_nodes:
                 node.update_color(context, node.node)
 
-    # Make sure icons have been registered
-    try:
-        icons = icon_collections["icons"]
-    except KeyError:
-        from . import icons
-        icons.register()
-        icons = icon_collections["icons"]
+    icons = icon_collections["icons"]
+
+    # GENERAL
+    enable_on_load: bpy.props.BoolProperty(
+        name="Enable on load",
+        description="Automatically enable the minimap when you load a file",
+        default=True,
+    )
+
+    only_top_level: bpy.props.BoolProperty(
+        name="Only top level nodes",
+        description="Only draw nodes that arent in a frame",
+        update=update_minimap,
+    )
+
+    show_non_frames: bpy.props.BoolProperty(
+        name="Show non frames",
+        description="Whether to show non frame nodes",
+        default=True,
+        update=update_minimap,
+    )
+
+    zoom_to_nodes: bpy.props.BoolProperty(
+        name="Zoom to nodes (can be slow)",
+        description="""When a node is clicked in the minimap, focus on that node. Be aware that this causes a scene \
+update, so it's best to turn this off when using node trees that take a long time to evaluate""",
+        default=True,
+        update=update_minimap,
+    )
+
+    show_non_full_frames: bpy.props.BoolProperty(
+        name="Show non full frames",
+        description="""Whether to show frames that don't contain any nodes. There currently isn't a good way to get\
+the location of these nodes from the python api, so if this is on, they may appear in the wrong position""",
+        default=True,
+        update=update_minimap,
+    )
+
+    # SHAPE
 
     anchor_corner: bpy.props.EnumProperty(
         items=(
@@ -106,7 +139,6 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
         update=update_minimap,
     )
 
-    # size: bpy.props.IntProperty(default=300, min=0, update=update_minimap)
     size: bpy.props.FloatProperty(
         name="Size",
         description="The factor of the width of the area to take up",
@@ -144,34 +176,9 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
         subtype="COORDINATES",
     )
 
-    only_top_level: bpy.props.BoolProperty(
-        name="Only top level nodes",
-        description="Only draw nodes that arent in a frame",
-        update=update_minimap,
-    )
+    # LOOK
 
-    show_non_frames: bpy.props.BoolProperty(
-        name="Show non frames",
-        description="Whether to show non frame nodes",
-        default=True,
-        update=update_minimap,
-    )
-
-    zoom_to_nodes: bpy.props.BoolProperty(
-        name="Zoom to nodes (can be slow)",
-        description="""When a node is clicked in the minimap, focus on that node. Be aware that this causes a scene \
-update, so it's best to turn this off when using node trees that take a long time to evaluate""",
-        default=True,
-        update=update_minimap,
-    )
-
-    show_non_full_frames: bpy.props.BoolProperty(
-        name="Show non full frames",
-        description="""Whether to show frames that don't contain any nodes. There currently isn't a good way to get\
-the location of these nodes from the python api, so if this is on, they may appear in the wrong position""",
-        default=True,
-        update=update_minimap,
-    )
+    theme = bpy.context.preferences.themes[0].node_editor
 
     outline_color: bpy.props.FloatVectorProperty(
         name="Outline color",
@@ -195,7 +202,6 @@ the location of these nodes from the python api, so if this is on, they may appe
         update=update_minimap,
     )
 
-    theme = bpy.context.preferences.themes[0].node_editor
     background_color: bpy.props.FloatVectorProperty(
         name="Background color",
         description="The color of the minimap background",
@@ -237,41 +243,50 @@ the location of these nodes from the python api, so if this is on, they may appe
         description="The color of the nodes when use node colors is false",
         size=4,
         subtype="COLOR",
-        # default=(0.45, 0.45, 0.45, 1),
         default=list(theme.node_backdrop),
         min=0,
         max=1,
         update=update_minimap,
     )
 
+    # INTERNAL
+
     is_enabled: bpy.props.BoolProperty()
 
     def draw(self, context):
         layout = self.layout
         layout: bpy.types.UILayout
-        prefs = get_prefs(context)
+        prefs = get_prefs(context)  # can't use self because draw function is also used by a panel
 
+        row = layout.row(align=True)
+        icons = icon_collections["icons"]
+        row.scale_y = 1.5
+        icon = "CHECKMARK" if prefs.is_enabled else "BLANK1"
         if not issubclass(self.__class__, bpy.types.AddonPreferences):
-            icon = "CHECKMARK" if prefs.is_enabled else "BLANK1"
-            row = layout.row(align=True)
-            row.scale_y = 1.5
+            row.scale_x = 1.25
             row.operator("node.enable_minimap", depress=prefs.is_enabled, icon=icon, text="Show minimap      ")
             layout.separator()
+            icon_value = icons["enable on load.png"].icon_id
+            row.prop(prefs, "enable_on_load", text="", icon_value=icon_value, toggle=True)
 
         # Grid flow allows the UI to adapt to areas of different widths.
-        layout = layout.grid_flow(row_major=True, even_columns=True,)
+        layout = layout.grid_flow(row_major=True, even_columns=True)
 
         factor = 0.9
-        col = draw_section(layout, title="Performance")
+        col = draw_section(layout, title="General")
+        draw_inline_prop(col, prefs, "enable_on_load", "Auto enable", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
-        if context.area.type == "NODE_EDITOR" and len(context.space_data.node_tree.nodes) > 100 and prefs.zoom_to_nodes:
-            row = col.row(align=True)
-            box = col.box().column(align=True)
-            row.alert = True
-            box.label(text="This node tree has more than 100")
-            box.label(text="nodes, evaluation may be slow")
+        if context.area.type == "NODE_EDITOR" and len(
+                context.space_data.node_tree.nodes
+        ) > 100 and prefs.zoom_to_nodes and context.space_data.node_tree.type == "GEOMETRY":
+            if context.space_data.node_tree.type == "GEOMETRY":
+                row = col.row(align=True)
+                box = col.box().column(align=True)
+                row.alert = True
+                box.label(text="This node tree has more than 100")
+                box.label(text="nodes, evaluation may be slow")
         else:
             row = col.row(align=True)
         draw_inline_prop(row, prefs, "zoom_to_nodes", factor=factor, alignment="LEFT")
@@ -307,7 +322,11 @@ def on_load(_0, _1):
     prefs.is_enabled = False
     minimap_cache = get_minimap_cache(bpy.context)
     minimap_cache.shader_cache = None
-    operators.unregister()
+    operators.unregister()  # remove handlers
+
+    # Load new minimap if enabled
+    if prefs.enable_on_load:
+        bpy.ops.node.enable_minimap("INVOKE_DEFAULT")
 
 
 def register():

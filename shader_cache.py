@@ -173,7 +173,6 @@ class NodeCache():
             self.node_tree_name = get_alt_node_tree_name(node_tree)
         self.tree_type = node_tree.type
 
-        self.can_draw = self.check_can_draw(bpy.context)
         self.theme_color = get_node_color(bpy.context, node)
         self.visual_location = get_node_loc(node)
         self.node_rect = get_node_rect(
@@ -186,6 +185,7 @@ class NodeCache():
         self.batch = get_batch_from_quads_2d(self.node_rect.coords)
         self.outline_batch = get_batch_lines_from_quads_2d(self.node_rect.coords)
         self.is_frame_used = self.get_is_frame_used()
+        self.can_draw = self.check_can_draw(bpy.context)
         theme = bpy.context.preferences.themes[0].node_editor
         self.active_color = list(theme.node_active) + [0.9]  # add alpha channel
         self.selected_color = list(theme.node_selected) + [0.9]  # add alpha channel
@@ -276,7 +276,7 @@ class NodeCache():
     def update(self, context):
         """Called once per node per area per draw (a.k.a a lot). This is where the most optimisation has been done"""
         node = self.node
-        if node.location != self.location or node.width != self.width:
+        if not self.area_cache.tag_update and node.location != self.location or node.width != self.width:
             self.location = node.location.copy()
             self.width = node.width
             self.area_cache.tag_update = True

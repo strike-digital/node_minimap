@@ -37,12 +37,14 @@ class MINIMAP_PT_settings_panel(bpy.types.Panel):
 def draw_header_button(self, context):
     if not context.space_data.node_tree:
         return
-    layout = self.layout
     icons = icon_collections["icons"]
+    icon = icons["minimap.png"]
+
+    layout = self.layout
     layout: bpy.types.UILayout
     row = layout.row(align=True)
     prefs = get_prefs(context)
-    row.operator("node.enable_minimap", text="", depress=prefs.is_enabled, icon_value=icons["minimap.png"].icon_id)
+    row.operator("node.enable_minimap", text="", depress=prefs.is_enabled, icon_value=icon.icon_id)
     row.popover("MINIMAP_PT_settings_panel", text="")
 
 

@@ -7,6 +7,7 @@ from .shader_cache import ShaderCache
 handlers = []
 
 
+# Data class for storing event info
 class CustomEvent():
 
     def __init__(self, event: bpy.types.Event):
@@ -22,12 +23,7 @@ class MINIMAP_OT_InitDrawOperators(bpy.types.Operator):
 
     def invoke(self, context, event):
         prefs = get_prefs(context)
-        if context.area.type != 'NODE_EDITOR':
-            self.report({'WARNING'}, "Node editor not found, cannot run operator")
-            return {'CANCELLED'}
         if prefs.is_enabled:
-            # Need to find a way to disable it from an operator once it's running
-            # Curently only way to stop it is to press escape
             prefs.is_enabled = False
             return {'CANCELLED'}
 
@@ -54,7 +50,7 @@ class MINIMAP_OT_InitDrawOperators(bpy.types.Operator):
         return {'PASS_THROUGH'}
 
 
-class ModalDrawOperator(bpy.types.Operator):
+class MINIMAP_OT_DrawAreaMinimap(bpy.types.Operator):
     """Draw a minimap in the corner of the given area"""
     bl_idname = "node.draw_area_minimap"
     bl_label = "Draw a minimap in the corner of the given area"
@@ -126,10 +122,7 @@ class ModalDrawOperator(bpy.types.Operator):
             try:
                 area_cache = get_shader_cache(context).areas[str(area)]
             except KeyError:
-                # area has been removed
-                bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
-                handlers.remove(self.handler)
-                return {'CANCELLED'}
+                return {'PASS_THROUGH'}
 
             # Zoom to node only if single click and not panning
             # To get whether it is a single click we need to look at the past events to see
