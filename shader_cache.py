@@ -242,10 +242,10 @@ class NodeCache():
         draw_quads_2d_batch(self.batch, color)
         # draw outlines
         node_tree = node.id_data
-        if node == node_tree.nodes.active:
-            draw_lines_from_quads_2d_batch(self.outline_batch, self.active_color, line_width)
-        elif node.select:
+        if node.select:
             draw_lines_from_quads_2d_batch(self.outline_batch, self.selected_color, line_width)
+            if node == node_tree.nodes.active:
+                draw_lines_from_quads_2d_batch(self.outline_batch, self.active_color, line_width)
 
     def update_loc_dims(self, node=None):
         """Update cached data relating to location and size"""

@@ -1,8 +1,7 @@
 import bpy
 from .functions import get_prefs
 from .preferences import MinimapAddonPrefs
-from pathlib import Path
-from bpy.utils import previews
+from .icons import icon_collections
 
 # We need two different panels because defining
 
@@ -47,26 +46,10 @@ def draw_header_button(self, context):
     row.popover("MINIMAP_PT_settings_panel", text="")
 
 
-icon_collections = {}
-
-
 # Add a button to the header
 def register():
     bpy.types.NODE_HT_header.append(draw_header_button)
 
-    # load icons
-    icon_path = Path(__file__).parent / "icons"
-    global icon_collections
-    pcoll = previews.new()
-    for file in list(icon_path.glob("*.png")):
-        pcoll.load(file.name, str(file), "IMAGE")
-    icon_collections["icons"] = pcoll
-    global icons
-
 
 def unregister():
     bpy.types.NODE_HT_header.remove(draw_header_button)
-
-    global icon_collections
-    for pcoll in icon_collections.values():
-        previews.remove(pcoll)

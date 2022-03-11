@@ -67,6 +67,7 @@ def get_batch_from_quads_2d(sequence) -> GPUBatch:
 #     shader.uniform_float("radius", [200, 200])
 #     batch.draw(shader)
 
+
 def draw_quads_2d_batch(batch, color):
     """Draw a rectangle batch with the given color"""
     gpu.state.blend_set('ALPHA')
@@ -237,20 +238,44 @@ def get_node_area(node_tree) -> Rectangle:
 
 def get_map_area(context, area, node_area) -> Rectangle:
     """Returns a rectangle representing the size, shape and position of the minimap box"""
-    region = area.regions[0]
-    region_width = region.width - area.regions[1].width
+    region = area.regions[3]
+    # We need to take into account the size of the header
+    region_height = region.height - (area.regions[0].height / 2)
+    region_height = region.height
+
     prefs = get_prefs(context)
-    padding = V((prefs.offset[0], prefs.offset[1]))
-    x = y = min(region_width / (prefs.size + padding.x * 2), prefs.max_size)
-    size = V((prefs.size * x, prefs.size * y))
     size = min(max(region.width * prefs.size, prefs.min_size), prefs.max_size)
     size = V((size, size))
     size.y *= (node_area.size.y / node_area.size.x)
 
-    area_size = V([region_width, region.height])
-    location = area_size - padding
-    min_co = V((location.x - size.x, location.y))
-    max_co = V((location.x, location.y + size.y))
+    padding = V(prefs.offset)
+
+    area_size = V([region.width, region_height])
+    corner = prefs.anchor_corner
+
+    # If breadcrumbs are enabled, move the minimap down so they don't overlap
+    if corner == "TL":
+        show_path = area.spaces[0].overlay.show_context_path
+        if show_path:
+            padding.y += 30
+
+    min_co = V((0, 0))
+    max_co = V((0, 0))
+
+    if "B" in corner:
+        min_co.y = padding.y
+        max_co.y = min_co.y + size.y
+    else:
+        max_co.y = area_size.y - padding.y
+        min_co.y = max_co.y - size.y
+
+    if "L" in corner:
+        min_co.x = padding.x
+        max_co.x = min_co.x + size.x
+    else:
+        max_co.x = area_size.x - padding.x
+        min_co.x = max_co.x - size.x
+
     map_area = Rectangle(min_co=min_co, max_co=max_co)
     return map_area
 

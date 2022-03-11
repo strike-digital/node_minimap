@@ -16,9 +16,8 @@ bl_info = {
     "author": "Andrew Stevenson",
     "description": "Display a minimap in the corner of the node editor",
     "blender": (3, 0, 0),
-    "version": (0, 0, 2),
+    "version": (1, 0, 0),
     "location": "Node editor > Header",
-    "warning": "This is not finished, and probably very buggy, so I hope you don't value your sanity :)",
     "category": "Node"
 }
 

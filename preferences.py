@@ -1,6 +1,7 @@
 import bpy
 from . import operators
 from .functions import get_minimap_cache, get_prefs, get_shader_cache
+from .icons import icon_collections
 
 
 def draw_section(layout: bpy.types.UILayout, title: str):
@@ -13,17 +14,20 @@ def draw_section(layout: bpy.types.UILayout, title: str):
     row.alignment = "CENTER"
     row.label(text=title)
     col = box.column()
+    main_col.separator()
     return col
 
 
-def draw_inline_prop(layout: bpy.types.UILayout,
-                     data,
-                     data_name,
-                     text="",
-                     prop_text="",
-                     invert=False,
-                     factor=0.48,
-                     alignment="RIGHT"):
+def draw_inline_prop(
+    layout: bpy.types.UILayout,
+    data,
+    data_name,
+    text="",
+    prop_text="",
+    invert=False,
+    factor=0.48,
+    alignment="RIGHT",
+):
     """Draw a property with the label to the left of the value"""
     row = layout.row()
     split = row.split(factor=factor, align=True)
@@ -57,7 +61,50 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
             for node in area_cache.all_nodes:
                 node.update_color(context, node.node)
 
-    theme = bpy.context.preferences.themes[0].node_editor
+    # Make sure icons have been registered
+    try:
+        icons = icon_collections["icons"]
+    except KeyError:
+        from . import icons
+        icons.register()
+        icons = icon_collections["icons"]
+
+    anchor_corner: bpy.props.EnumProperty(
+        items=(
+            (
+                "BL",
+                "Bottom-left",
+                "Anchor the minimap to the bottom left hand side of the area",
+                icons["anchor bl.png"].icon_id,
+                0,
+            ),
+            (
+                "BR",
+                "Bottom-right",
+                "Anchor the minimap to the bottom right hand side of the area",
+                icons["anchor br.png"].icon_id,
+                1,
+            ),
+            (
+                "TL",
+                "Top-left",
+                "Anchor the minimap to the top left hand side of the area",
+                icons["anchor tl.png"].icon_id,
+                2,
+            ),
+            (
+                "TR",
+                "Top-right",
+                "Anchor the minimap to the top right hand side of the area",
+                icons["anchor tr.png"].icon_id,
+                3,
+            ),
+        ),
+        name="Corner",
+        description="The corner to anchor the minimap to",
+        default="BR",
+        update=update_minimap,
+    )
 
     # size: bpy.props.IntProperty(default=300, min=0, update=update_minimap)
     size: bpy.props.FloatProperty(
@@ -148,6 +195,7 @@ the location of these nodes from the python api, so if this is on, they may appe
         update=update_minimap,
     )
 
+    theme = bpy.context.preferences.themes[0].node_editor
     background_color: bpy.props.FloatVectorProperty(
         name="Background color",
         description="The color of the minimap background",
@@ -210,12 +258,15 @@ the location of these nodes from the python api, so if this is on, they may appe
             row.operator("node.enable_minimap", depress=prefs.is_enabled, icon=icon, text="Show minimap      ")
             layout.separator()
 
+        # Grid flow allows the UI to adapt to areas of different widths.
+        layout = layout.grid_flow(row_major=True, even_columns=True,)
+
         factor = 0.9
         col = draw_section(layout, title="Performance")
         draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
         draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
-        if len(context.space_data.node_tree.nodes) > 100 and prefs.zoom_to_nodes:
+        if context.area.type == "NODE_EDITOR" and len(context.space_data.node_tree.nodes) > 100 and prefs.zoom_to_nodes:
             row = col.row(align=True)
             box = col.box().column(align=True)
             row.alert = True
@@ -225,14 +276,13 @@ the location of these nodes from the python api, so if this is on, they may appe
             row = col.row(align=True)
         draw_inline_prop(row, prefs, "zoom_to_nodes", factor=factor, alignment="LEFT")
 
-        layout.separator()
         col = draw_section(layout, title="Shape")
         factor = 0.3
+        draw_inline_prop(col, prefs, "anchor_corner", factor=factor)
         draw_inline_prop(col, prefs, "size", "Scale", factor=factor)
         sub = draw_inline_prop(col, prefs, "min_size", "Size", prop_text="Min", factor=factor)
         sub.prop(prefs, "max_size", text="Max")
         draw_inline_prop(col, prefs, "offset", "Offset", factor=factor)
-        layout.separator()
 
         col = draw_section(layout, title="Look")
         draw_inline_prop(col, prefs, "line_width")
@@ -244,7 +294,6 @@ the location of these nodes from the python api, so if this is on, they may appe
         if not prefs.use_node_colors:
             draw_inline_prop(col, prefs, "node_color")
 
-        layout.separator()
         col = draw_section(layout, title="Controls")
         col.label(text="Click and drag to pan the view")
         col.label(text="Double click to view all")

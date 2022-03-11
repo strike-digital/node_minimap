@@ -126,6 +126,7 @@ class ModalDrawOperator(bpy.types.Operator):
             try:
                 area_cache = get_shader_cache(context).areas[str(area)]
             except KeyError:
+                # area has been removed
                 bpy.types.SpaceNodeEditor.draw_handler_remove(self.handler, 'WINDOW')
                 handlers.remove(self.handler)
                 return {'CANCELLED'}
