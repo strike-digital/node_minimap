@@ -1,4 +1,5 @@
 import bpy
+import blf
 from typing import Dict, List
 from mathutils import Vector as V
 from .helpers import get_active_tree, get_alt_node_tree_name, vec_divide
@@ -127,6 +128,7 @@ class AreaCache():
                 self.current_node_tree_name = nt.name
             # add missing nodes
             if len(nt.nodes) != len(self.all_nodes):
+                self.tag_update = True
                 for node in nt.nodes:
                     if node.name not in self.node_names:
                         self.all_nodes.append(NodeCache(node, self, nt))
@@ -162,7 +164,6 @@ class NodeCache():
         self.is_frame = node.type == "FRAME"
         self.select = node.select
         self.use_custom_color = node.use_custom_color
-        self.parent = node.parent
 
         # check if it is ashader or compositor node tree that is bound to either a material or scene,
         # and doesn't show up in bpy.data.node_groups
@@ -173,19 +174,8 @@ class NodeCache():
             self.node_tree_name = get_alt_node_tree_name(node_tree)
         self.tree_type = node_tree.type
 
-        self.theme_color = get_node_color(bpy.context, node)
-        self.visual_location = get_node_loc(node)
-        self.node_rect = get_node_rect(
-            node,
-            area_cache.node_area,
-            area_cache.map_area,
-            area_cache.scale,
-            self.visual_location,
-        )
-        self.batch = get_batch_from_quads_2d(self.node_rect.coords)
-        self.outline_batch = get_batch_lines_from_quads_2d(self.node_rect.coords)
-        self.is_frame_used = self.get_is_frame_used()
-        self.can_draw = self.check_can_draw(bpy.context)
+        self.update_loc_dims(node)
+        self.update_color(bpy.context, node)
         theme = bpy.context.preferences.themes[0].node_editor
         self.active_color = list(theme.node_active) + [0.9]  # add alpha channel
         self.selected_color = list(theme.node_selected) + [0.9]  # add alpha channel
@@ -220,6 +210,41 @@ class NodeCache():
                 return True
         return False
 
+    def update_loc_dims(self, node=None):
+        """Update cached data relating to location and size"""
+        if not node:
+            node = self.node
+        self.visual_location = get_node_loc(node)
+        self.node_rect = get_node_rect(
+            node,
+            self.area_cache.node_area,
+            self.area_cache.map_area,
+            self.area_cache.scale,
+            self.visual_location,
+        )
+        self.batch = get_batch_from_quads_2d(self.node_rect.coords)
+        self.outline_batch = get_batch_lines_from_quads_2d(self.node_rect.coords)
+        self.is_frame_used = self.get_is_frame_used()
+        self.can_draw = self.check_can_draw(bpy.context)
+        self.parent = node.parent
+        self.update_label(node)
+
+    def update_color(self, context, node):
+        """Update cached data relating to color"""
+        prefs = get_prefs(context)
+        if node.use_custom_color:
+            self.theme_color = list(node.color) + [prefs.node_transparency]  # The alpha value
+        else:
+            self.theme_color = get_node_color(bpy.context, node)
+
+    def update_label(self, node):
+        self.label = node.label
+        node_rect = self.node_rect
+        dims = blf.dimensions(0, node.label)
+        posx = (node_rect.minx + (node_rect.maxx - node_rect.minx) / 2) - dims[0] / 2
+        posy = node_rect.miny - dims[1]
+        self.label_pos = V((posx, posy))
+
     def check_can_draw(self, context):
         prefs = get_prefs(context)
         return not (not self.draw or\
@@ -247,31 +272,66 @@ class NodeCache():
             if node == node_tree.nodes.active:
                 draw_lines_from_quads_2d_batch(self.outline_batch, self.active_color, line_width)
 
-    def update_loc_dims(self, node=None):
-        """Update cached data relating to location and size"""
-        if not node:
-            node = self.node
-        self.visual_location = get_node_loc(node)
-        self.node_rect = get_node_rect(
-            node,
-            self.area_cache.node_area,
-            self.area_cache.map_area,
-            self.area_cache.scale,
-            self.visual_location,
-        )
-        self.batch = get_batch_from_quads_2d(self.node_rect.coords)
-        self.outline_batch = get_batch_lines_from_quads_2d(self.node_rect.coords)
-        self.is_frame_used = self.get_is_frame_used()
-        self.can_draw = self.check_can_draw(bpy.context)
-        self.parent = node.parent
+    def draw_label(self):
+        prefs = get_prefs(bpy.context)
+        if self.is_frame and self.label and (not prefs.show_non_frames or prefs.only_top_level):
+            # self.update_label(self.node)
+            node_size = self.node_rect.size
+            size = min(node_size.x, abs(node_size.y) * 5)
+            if size < prefs.min_frame_size:
+                return
 
-    def update_color(self, context, node):
-        """Update cached data relating to color"""
-        prefs = get_prefs(context)
-        if node.use_custom_color:
-            self.theme_color = list(node.color) + [prefs.node_transparency]  # The alpha value
-        else:
-            self.theme_color = get_node_color(bpy.context, node)
+            minsize = 50
+            size = max(size, minsize)
+            # size = max(node_size.x, minsize)
+            blf.size(0, size, 10)
+
+            color = prefs.text_color
+            blf.color(0, color[0], color[1], color[2], color[3])
+
+            node = self.node
+
+            dims = blf.dimensions(0, node.label)
+            node_rect = self.node_rect
+            posx = (node_rect.minx + (node_rect.maxx - node_rect.minx) / 2) - dims[0] / 2
+            posy = node_rect.miny - dims[1]
+
+            # words
+            if prefs.text_wrap:
+                words = node.label.split()
+                string = ""
+                prev_dims = (0, 0)
+                lines = []
+                for i, word in enumerate(words):
+                    next_word = words[i + 1] if i != len(words) - 1 else ""
+                    string = string + " " + word
+                    dims = blf.dimensions(0, string)
+
+                    # check if next word will overlap with sides
+                    next_dims = blf.dimensions(0, string + next_word)
+                    if next_dims[0] > size or i == len(words) - 1:
+                        posy -= prev_dims[1] + dims[1] * 0.3
+                        posx = (node_rect.minx + (node_rect.maxx - node_rect.minx) / 2) - dims[0] / 2
+                        lines.append({"string": string, "posx": posx, "posy": posy, "dims": dims})
+                        # blf.position(0, posx, posy, 0)
+                        # blf.draw(0, string)
+                        string = ""
+                        prev_dims = dims
+
+                total_height = sum([line["dims"][1] for line in lines])
+                total_width = max([line["dims"][0] for line in lines])
+                if total_height > node_size.y:
+                    blf.size(0, max(int(abs(node_size.y)), minsize), 10)
+                    # blf.size(0, max(size-abs(node_size.y), minsize), 10)
+                if total_width > node_size.x:
+                    blf.size(0, max(int(int(abs(node_size.x))), minsize), 10)
+
+                for line in lines:
+                    blf.position(0, line["posx"], line["posy"], 0)
+                    blf.draw(0, line["string"])
+            else:
+                blf.position(0, posx, posy, 0)
+                blf.draw(0, node.label)
 
     def update(self, context):
         """Called once per node per area per draw (a.k.a a lot). This is where the most optimisation has been done"""
@@ -284,6 +344,8 @@ class NodeCache():
             self.update_color(context, node)
             self.use_custom_color = node.use_custom_color
             self.color = node.color.copy()
+        # if node.label != self.label:
+        #     self.update_label(node)
 
 
 # register the top level cache

@@ -82,6 +82,10 @@ def draw_callback_px(self: MINIMAP_OT_DrawAreaMinimap, context: bpy.types.Contex
         for node_cache in area_cache.all_nodes:
             node_cache.draw_node(context, line_width)
 
+        if prefs.show_labels:
+            for node_cache in area_cache.all_nodes:
+                node_cache.draw_label()
+
     # draw minimap outline
     draw_lines_from_quads_2d_batch(area_cache.outline_batch, prefs.outline_color, line_width)
 
@@ -92,14 +96,6 @@ def draw_callback_px(self: MINIMAP_OT_DrawAreaMinimap, context: bpy.types.Contex
     view_area = Rectangle(view_min, view_max)
     self.view_area = view_area
     draw_view_box(view_area, node_area, map_area, prefs.view_outline_color, line_width)
-
-    # # Draw debug text in the bottom left
-    # import blf
-    # font_id = 0  # XXX, need to find out how best to get this.
-    # blf.position(font_id, 15, 30, 0)
-    # blf.size(font_id, 20, 72)
-    # # blf.draw(font_id, "Hello Word " + str(len(self.mouse_path)))
-    # blf.draw(font_id, str(self.idx))
 
     global times
     global final

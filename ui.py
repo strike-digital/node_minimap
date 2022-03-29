@@ -3,8 +3,6 @@ from .functions import get_prefs
 from .preferences import MinimapAddonPrefs
 from .icons import icon_collections
 
-# We need two different panels because defining
-
 
 class MINIMAP_PT_settings_panel(bpy.types.Panel):
     """Shows the minimap settings in the header"""
@@ -16,6 +14,8 @@ class MINIMAP_PT_settings_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         return context.space_data.node_tree
+
+    sections = 0
 
     draw = MinimapAddonPrefs.draw
 
@@ -38,7 +38,12 @@ def draw_header_button(self, context):
     if not context.space_data.node_tree:
         return
     icons = icon_collections["icons"]
-    icon = icons["minimap.png"]
+    try:
+        icon = icons["minimap.png"]
+    except KeyError:
+        from . import icons as icns
+        icns.register()
+        return
 
     layout = self.layout
     layout: bpy.types.UILayout

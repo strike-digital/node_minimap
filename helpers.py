@@ -158,10 +158,3 @@ def get_active_region(context, mouse_pos) -> Region:
     return context.region
 
 
-def get_alt_node_tree_name(node_tree) -> str:
-    """Get's the name of the parent data block for this node tree
-    Only necessary if the tree is attached to a material or scene (shading or compositing)"""
-    # "bpy.data.materials['Material'].node_tree"
-    # returns 'Material'
-    # Not a good way to do it, but I can't find a better one :(
-    return repr(node_tree.id_data).split("'")[1]

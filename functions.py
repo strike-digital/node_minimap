@@ -4,10 +4,11 @@ from mathutils import Vector as V
 from gpu.types import GPUBatch
 from gpu_extras.batch import batch_for_shader
 from .helpers import Rectangle, vec_divide, vec_lerp, vec_min, vec_max, vec_multiply
-from bpy.types import Area, AddonPreferences
+from bpy.types import Area
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .shader_cache import ShaderCache, CacheContainer
+    from .preferences import MinimapAddonPrefs
 
 sh_2d = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
 sh_2d_uniform_float = sh_2d.uniform_float
@@ -32,7 +33,6 @@ def draw_quads_2d(sequence, color):
     uv = [(0, 0, 1, 0, 1, 1) for (x1, y1, y2, x2) in (sequence,)]
     batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq, 'uv': uv})
     gpu.state.blend_set('ALPHA')
-    sh_2d()
     sh_2d("color", [*color])
     batch.draw(sh_2d)
 
@@ -195,6 +195,8 @@ def get_node_color(context, node) -> list[float]:
         name = "group_socket_node"
     if node.type == "GROUP":
         name = "group_node"
+    elif node.type == "FRAME":
+        name = "frame_node"
 
     if name:
         color = getattr(theme, name)
@@ -318,7 +320,7 @@ def get_area(self, context) -> Area:
     return context.area
 
 
-def get_prefs(context) -> AddonPreferences:
+def get_prefs(context) -> MinimapAddonPrefs:
     """Return the addon preferences"""
     return context.preferences.addons[__package__].preferences
 
