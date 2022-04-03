@@ -2,9 +2,10 @@ import bpy
 import blf
 from typing import Dict, List
 from mathutils import Vector as V
-from .helpers import get_active_tree, get_alt_node_tree_name, vec_divide
-from .functions import draw_lines_from_quads_2d_batch, draw_quads_2d_batch, get_batch_from_quads_2d,\
-    get_batch_lines_from_quads_2d, get_map_area, get_node_area, get_node_color, get_node_loc, get_node_rect, get_prefs
+from ..shared.helpers import get_active_tree, get_alt_node_tree_name, vec_divide
+from ..shared.functions import draw_lines_from_quads_2d_batch, draw_quads_2d_batch, get_batch_from_quads_2d,\
+    get_batch_lines_from_quads_2d, get_node_area, get_node_color, get_node_loc, get_prefs
+from .minimap_functions import get_map_area, get_node_rect
 """
 The caching system makes understanding how the minimap drawing works quite a lot harder, so if you want to do that,
 I'd advise getting the first release on GitHub, and looking at that first. It will be a lot slower though.

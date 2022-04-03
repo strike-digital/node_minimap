@@ -1,50 +1,16 @@
 import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatVectorProperty, FloatProperty, IntProperty, IntVectorProperty
 from . import operators
-from .functions import get_minimap_cache, get_prefs, get_shader_cache
-from .icons import icon_collections
+from ..shared.functions import get_prefs
+from .minimap_functions import get_minimap_cache, get_shader_cache
+from ..shared.ui import draw_enabled_button, draw_inline_prop, draw_section
+from ..shared.icons import icon_collections
 
 
-def draw_section(layout: bpy.types.UILayout, title: str):
-    main_col = layout.column(align=True)
-    box = main_col.box()
-    col = box.column(align=True)
-    col.scale_y = 0.85
-    row = col.row(align=True)
-    box = main_col.box()
-    row.alignment = "CENTER"
-    row.label(text=title)
-    col = box.column()
-    main_col.separator()
-    return col
+class MinimapAddonPrefs():
+    """Node minimap"""
 
-
-def draw_inline_prop(
-    layout: bpy.types.UILayout,
-    data,
-    data_name,
-    text="",
-    prop_text="",
-    invert=False,
-    factor=0.48,
-    alignment="RIGHT",
-):
-    """Draw a property with the label to the left of the value"""
-    row = layout.row()
-    split = row.split(factor=factor, align=True)
-    split.use_property_split = False
-    left = split.row(align=True)
-    left.alignment = alignment
-    if not text:
-        text = data.bl_rna.properties[data_name].name
-    left.label(text=text)
-    col = split.column(align=True)
-    col.prop(data, data_name, text=prop_text, invert_checkbox=invert)
-    return col
-
-
-class MinimapAddonPrefs(bpy.types.AddonPreferences):
-    bl_idname = __package__
+    icon = "minimap.png"
 
     # Trigger the cache to update when a property is changed
     def update_minimap(self, context):
@@ -66,7 +32,18 @@ class MinimapAddonPrefs(bpy.types.AddonPreferences):
     def update_label(self, context):
         return
 
+    def minimap_section_enabled_update(self, context):
+        prefs = get_prefs(bpy.context)
+        prefs.is_enabled = False
+        minimap_cache = get_minimap_cache(bpy.context)
+        minimap_cache.shader_cache = None
+
     icons = icon_collections["icons"]
+
+    minimap_section_enabled: BoolProperty(name="Minimap enabled",
+                                          description="Whether to enable the minimap section",
+                                          default=True,
+                                          update=minimap_section_enabled_update)
 
     # GENERAL
     enable_on_load: BoolProperty(
@@ -304,6 +281,10 @@ the location of these nodes from the python api, so if this is on, they may appe
     def draw(self, context):
         layout = self.layout
         layout: bpy.types.UILayout
+        is_prefs = issubclass(self.__class__, bpy.types.AddonPreferences)
+
+        if is_prefs:
+            layout = draw_enabled_button(layout, self, "minimap_section_enabled")
         prefs = get_prefs(context)  # can't use self because draw function is also used by a panel
         page = int(prefs.page)
 
@@ -312,7 +293,6 @@ the location of these nodes from the python api, so if this is on, they may appe
         row.scale_y = 1.5
         icon = "CHECKMARK" if prefs.is_enabled else "BLANK1"
         factor = 0.1
-        is_prefs = issubclass(self.__class__, bpy.types.AddonPreferences)
         if not is_prefs:
             row.scale_x = 1.25
             row.operator("node.enable_minimap", depress=prefs.is_enabled, icon=icon, text="Show minimap      ")

@@ -10,9 +10,10 @@ def register():
     global icon_collections
 
     # load icons
-    icon_path = Path(__file__).parent / "icons"
+    path = Path(__file__).parents[1]
     pcoll = previews.new()
-    for file in list(icon_path.glob("*.png")):
+    # match all subdirectories named icons and load all pngs in them
+    for file in list(path.glob("*/icons/*.png")):
         pcoll.load(file.name, str(file), "IMAGE")
     icon_collections["icons"] = pcoll
     pcolls.append(pcoll)

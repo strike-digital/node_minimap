@@ -2,9 +2,9 @@ from __future__ import annotations  # allow delayed annotation evaluation:
 # https://stackoverflow.com/questions/39740632/python-type-hinting-without-cyclic-imports
 
 import bpy
-from .helpers import Rectangle, get_active_tree
-from .functions import draw_lines_from_quads_2d_batch, draw_quads_2d_batch, draw_view_box, get_area, get_prefs,\
-    get_shader_cache
+from ..shared.helpers import Rectangle, get_active_tree
+from ..shared.functions import draw_lines_from_quads_2d_batch, draw_quads_2d_batch, get_area, get_prefs
+from .minimap_functions import draw_view_box, get_shader_cache
 from time import perf_counter
 from statistics import mean
 from typing import TYPE_CHECKING
@@ -37,6 +37,8 @@ def handler_create(self: MINIMAP_OT_InitDrawOperators, context: bpy.types.Contex
         self.areas.remove(area_name)
 
     cache = get_shader_cache(context)
+    if not cache:
+        return
     cache.update(context)
     global main_times
     global final
@@ -69,6 +71,8 @@ def draw_callback_px(self: MINIMAP_OT_DrawAreaMinimap, context: bpy.types.Contex
     color = prefs.background_color
 
     cache = get_shader_cache(context)
+    if not cache:
+        return
     area_cache = cache.areas[str(area)]
     area_cache.update(context, node_tree)
     map_area = self.map_area = area_cache.map_area

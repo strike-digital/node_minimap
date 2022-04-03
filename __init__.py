@@ -19,17 +19,24 @@
 # Object info
 # Most of the compostior nodes
 
+# I can now better approximate this by using the nodeitems_builtins module
+
+# Ideas:
+# reference images
+# Notes
+# socket aligned snapping for reroutes
+
 bl_info = {
     "name": "Node Minimap",
     "author": "Andrew Stevenson",
-    "description": "Display a minimap in the corner of the node editor",
+    "description": "Adds a minimap to the corner of the node editor",
     "blender": (3, 0, 0),
-    "version": (1, 0, 0),
+    "version": (1, 4, 0),
     "location": "Node editor > Header",
     "category": "Node"
 }
 
-from . import auto_load
+from .shared import auto_load
 
 
 auto_load.init()

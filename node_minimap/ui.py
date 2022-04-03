@@ -1,7 +1,7 @@
 import bpy
-from .functions import get_prefs
-from .preferences import MinimapAddonPrefs
-from .icons import icon_collections
+from ..shared.functions import get_prefs
+from .minimap_prefs import MinimapAddonPrefs
+from ..shared.icons import icon_collections
 
 
 class MINIMAP_PT_settings_panel(bpy.types.Panel):
@@ -13,6 +13,9 @@ class MINIMAP_PT_settings_panel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
+        prefs = get_prefs(context)
+        if not prefs.minimap_section_enabled:
+            return False
         return context.space_data.node_tree
 
     sections = 0
@@ -35,20 +38,20 @@ class MINIMAP_PT_settings_panel(bpy.types.Panel):
 
 
 def draw_header_button(self, context):
-    if not context.space_data.node_tree:
+    prefs = get_prefs(context)
+    if not context.space_data.node_tree or not prefs.minimap_section_enabled:
         return
     icons = icon_collections["icons"]
     try:
         icon = icons["minimap.png"]
     except KeyError:
-        from . import icons as icns
+        from ..shared import icons as icns
         icns.register()
         return
 
     layout = self.layout
     layout: bpy.types.UILayout
     row = layout.row(align=True)
-    prefs = get_prefs(context)
     row.operator("node.enable_minimap", text="", depress=prefs.is_enabled, icon_value=icon.icon_id)
     row.popover("MINIMAP_PT_settings_panel", text="")
 

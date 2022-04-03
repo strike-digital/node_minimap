@@ -1,6 +1,7 @@
 import bpy
 from mathutils import Vector as V
-from .functions import get_area, get_prefs, get_shader_cache
+from ..shared.functions import get_area, get_prefs
+from .minimap_functions import get_shader_cache
 from .draw_handlers import draw_callback_px, handler_create
 from .shader_cache import ShaderCache
 
