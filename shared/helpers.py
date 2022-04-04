@@ -2,9 +2,65 @@ import bpy
 from math import pi
 from statistics import mean
 from mathutils import Vector as V
-from mathutils.geometry import intersect_point_tri_2d, interpolate_bezier
+from mathutils.geometry import intersect_point_tri_2d, interpolate_bezier, area_tri
 from bpy.types import NodeTree, Context
+from time import perf_counter
 from typing import List
+from colorama import Fore
+from collections import deque
+
+
+class Timer():
+    """Class that allows easier timing of sections of code"""
+
+    def __init__(self, average_of=20):
+        self.start_times = {}
+        self.end_times = {}
+        self.indeces = {}
+        self.average_of = average_of
+
+    def start(self, name):
+        """Set the start time for this name"""
+        self.start_times[name] = perf_counter()
+
+    def end(self, name):
+        """Add an end time for this name"""
+
+        # Th
+        time = perf_counter() - self.start_times[name]
+        prev_times = self.end_times.get(name, deque(maxlen=self.average_of))
+
+        prev_times.append(time)
+        self.end_times[name] = prev_times
+        self.indeces[name] = (self.indeces.get(name, 0) + 1) % self.average_of
+
+    def get_time(self, name):
+        return mean(self.end_times[name])
+
+    def get_total(self):
+        return sum([mean(self.end_times[name]) for name in self.end_times.keys()])
+
+    def print_average(self, name):
+        average = mean(self.end_times[name])
+        if self.indeces[name] >= self.average_of - 2:
+            print(f"{name}: {' ' * (20 - len(name))}{average:.20f}")
+        return average
+
+    def print_all(self):
+        if self.indeces[list(self.indeces.keys())[0]] >= self.average_of - 2:
+            string = ""
+            items = sorted(self.end_times.items(), key=lambda i: mean(i[1]), reverse=True)
+            for i, (k, v) in enumerate(items):
+                if i == 0:
+                    color = Fore.LIGHTRED_EX
+                elif i == len(items) - 1:
+                    color = Fore.GREEN
+                else:
+                    color = Fore.WHITE
+                average = mean(v)
+                string += f"{color}{k}: {' ' * (20 - len(k))}{average:.20f}\n"
+            string += Fore.WHITE
+            print(string)
 
 
 class Polygon():
@@ -37,6 +93,34 @@ class Polygon():
                 return True
         return False
 
+    def as_tris(self, individual=False):
+        """Return the tris making up this polygon"""
+        points = []
+        for i, vert in enumerate(self.verts):
+            point = [vert, self.verts[i - 1], self.center]
+            if individual:
+                points.append(point)
+                continue
+            points.extend(point)
+        return points
+
+    def as_lines(self, individual=False):
+        """Return the lines making up the outline of this polygon as a single list"""
+        points = []
+        for i, vert in enumerate(self.verts):
+            if individual:
+                points.append([vert, self.verts[i - 1]])
+                continue
+            points.extend([vert, self.verts[i - 1]])
+        return points
+
+    def area(self):
+        area = 0
+        for tri in self.as_tris(individual=True):
+            # area += area_tri(*tri)
+            area += area_tri(tri[0], tri[1], tri[2])
+        return area
+
     def distance_to_edges(self, point: V, edges: List[List[V]] = None) -> float:
         """Get the minimum distance of a point from a list of edges.
         Code adapted from from: https://www.fundza.com/vectors/point2line/index.html"""
@@ -59,23 +143,6 @@ class Polygon():
             dist = (nearest - pnt_vec).length
             distances.append(dist)
         return min(distances)
-
-    def as_tris(self):
-        """Return the tris making up this polygon"""
-        points = []
-        for i, vert in enumerate(self.verts):
-            points.extend([vert, self.verts[i - 1], self.center])
-        return points
-
-    def as_lines(self, individual=False):
-        """Return the lines making up the outline of this polygon as a single list"""
-        points = []
-        for i, vert in enumerate(self.verts):
-            if individual:
-                points.append([vert, self.verts[i - 1]])
-                continue
-            points.extend([vert, self.verts[i - 1]])
-        return points
 
     def bevelled(self, radius=15):
         """Smooth the corners by using bezier interpolation between the last point,
