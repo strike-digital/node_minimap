@@ -9,9 +9,12 @@ from .helpers import Rectangle, vec_divide, vec_min, vec_max
 if TYPE_CHECKING:
     from .preferences import NodeExtrasPrefs
 
-sh_2d = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-sh_2d_uniform_float = sh_2d.uniform_float
-sh_2d_bind = sh_2d.bind
+sh_2d_uni = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+sh_2d_uniform_float = sh_2d_uni.uniform_float
+sh_2d_uni_bind = sh_2d_uni.bind
+
+sh_2d_flat = gpu.shader.from_builtin("2D_FLAT_COLOR")
+sh_2d_flat_bind = sh_2d_flat.bind
 
 # shader_file = Path(__file__).parent / "rounded_rectangle_vert.glsl"
 # with open(shader_file, "r") as f:
@@ -30,10 +33,10 @@ def draw_quads_2d(sequence, color):
     """Draw a rectangle from the given coordinates"""
     qseq, = [(x1, y1, y2, x1, y2, x2) for (x1, y1, y2, x2) in (sequence,)]
     uv = [(0, 0, 1, 0, 1, 1) for (x1, y1, y2, x2) in (sequence,)]
-    batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq, 'uv': uv})
+    batch = batch_for_shader(sh_2d_uni, 'TRIS', {'pos': qseq, 'uv': uv})
     gpu.state.blend_set('ALPHA')
-    sh_2d("color", [*color])
-    batch.draw(sh_2d)
+    sh_2d_uni("color", [*color])
+    batch.draw(sh_2d_uni)
 
 
 # def get_batch_from_quads_2d(sequence) -> GPUBatch:
@@ -49,7 +52,7 @@ def draw_quads_2d(sequence, color):
 def get_batch_from_quads_2d(sequence) -> GPUBatch:
     """Return the batch for a rectangle from the given coordinates"""
     qseq, = [(x1, y1, y2, x1, y2, x2) for (x1, y1, y2, x2) in (sequence,)]
-    batch = batch_for_shader(sh_2d, 'TRIS', {'pos': qseq})
+    batch = batch_for_shader(sh_2d_uni, 'TRIS', {'pos': qseq})
     return batch
 
 
@@ -70,9 +73,9 @@ def get_batch_from_quads_2d(sequence) -> GPUBatch:
 def draw_quads_2d_batch(batch, color):
     """Draw a rectangle batch with the given color"""
     gpu.state.blend_set('ALPHA')
-    sh_2d_bind()
+    sh_2d_uni_bind()
     sh_2d_uniform_float("color", [*color])
-    batch.draw(sh_2d)
+    batch.draw(sh_2d_uni)
 
 
 def draw_lines_from_quad_2d(sequence, color, width=1):
@@ -80,11 +83,11 @@ def draw_lines_from_quad_2d(sequence, color, width=1):
     # top/bottom, left/right
     # drawn in pairs of 2
     qseq, = [(tl, bl, bl, br, br, tr, tr, tl) for (tl, tr, br, bl) in (sequence,)]
-    batch = batch_for_shader(sh_2d, 'LINES', {'pos': qseq})
+    batch = batch_for_shader(sh_2d_uni, 'LINES', {'pos': qseq})
     gpu.state.line_width_set(width)
-    sh_2d_bind()
+    sh_2d_uni_bind()
     sh_2d_uniform_float("color", [*color])
-    batch.draw(sh_2d)
+    batch.draw(sh_2d_uni)
 
 
 def get_batch_lines_from_quads_2d(sequence) -> GPUBatch:
@@ -92,34 +95,50 @@ def get_batch_lines_from_quads_2d(sequence) -> GPUBatch:
     # top/bottom, left/right
     # drawn in pairs of 2
     qseq, = [(tl, bl, bl, br, br, tr, tr, tl) for (tl, tr, br, bl) in (sequence,)]
-    batch = batch_for_shader(sh_2d, 'LINES', {'pos': qseq})
+    batch = batch_for_shader(sh_2d_uni, 'LINES', {'pos': qseq})
     return batch
 
 
 def draw_lines_from_quads_2d_batch(batch, color, width):
     """Draw a rectangle line batch with the given color and width"""
     gpu.state.line_width_set(width)
-    sh_2d_bind()
+    sh_2d_uni_bind()
     sh_2d_uniform_float("color", [*color])
-    batch.draw(sh_2d)
+    batch.draw(sh_2d_uni)
 
 
-def draw_lines(coords, color, width=1):
+def draw_lines_uniform(coords, color, width=1):
     """Draw lines from the given coords and color"""
     gpu.state.line_width_set(width)
-    batch = batch_for_shader(sh_2d, 'LINES', {'pos': coords})
-    sh_2d_bind()
+    batch = batch_for_shader(sh_2d_uni, 'LINES', {'pos': coords})
+    sh_2d_uni_bind()
     sh_2d_uniform_float("color", [*color])
-    batch.draw(sh_2d)
+    batch.draw(sh_2d_uni)
     gpu.state.line_width_set(1)
 
 
-def draw_tris(coords, color):
+def draw_lines_flat(coords, colors, width=1):
+    """Draw lines from the given coords and color"""
+    gpu.state.line_width_set(width)
+    batch = batch_for_shader(sh_2d_flat, 'LINES', {'pos': coords, 'color': colors})
+    sh_2d_flat_bind()
+    batch.draw(sh_2d_flat)
+    gpu.state.line_width_set(1)
+
+
+def draw_tris_flat(coords, colors):
     """Draw tris from the given coords and color"""
-    batch = batch_for_shader(sh_2d, 'TRIS', {'pos': coords})
-    sh_2d_bind()
+    batch = batch_for_shader(sh_2d_flat, 'TRIS', {'pos': coords, 'color': colors})
+    sh_2d_flat_bind()
+    batch.draw(sh_2d_flat)
+
+
+def draw_tris_uniform(coords, color):
+    """Draw tris from the given coords and color"""
+    batch = batch_for_shader(sh_2d_uni, 'TRIS', {'pos': coords})
+    sh_2d_uni_bind()
     sh_2d_uniform_float("color", [*color])
-    batch.draw(sh_2d)
+    batch.draw(sh_2d_uni)
 
 
 def get_node_dims(node) -> V:

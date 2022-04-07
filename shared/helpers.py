@@ -6,8 +6,11 @@ from mathutils.geometry import intersect_point_tri_2d, interpolate_bezier, area_
 from bpy.types import NodeTree, Context
 from time import perf_counter
 from typing import List
-from colorama import Fore
 from collections import deque
+
+WHITE = '\033[37m'
+RED = '\033[91m'
+GREEN = '\033[92m'
 
 
 class Timer():
@@ -23,10 +26,8 @@ class Timer():
         """Set the start time for this name"""
         self.start_times[name] = perf_counter()
 
-    def end(self, name):
+    def stop(self, name):
         """Add an end time for this name"""
-
-        # Th
         time = perf_counter() - self.start_times[name]
         prev_times = self.end_times.get(name, deque(maxlen=self.average_of))
 
@@ -46,20 +47,22 @@ class Timer():
             print(f"{name}: {' ' * (20 - len(name))}{average:.20f}")
         return average
 
-    def print_all(self):
+    def print_all(self, accuracy=6):
+        """Print all active timers with formatting.
+        Accuracy is the number of decimal places to display"""
         if self.indeces[list(self.indeces.keys())[0]] >= self.average_of - 2:
             string = ""
             items = sorted(self.end_times.items(), key=lambda i: mean(i[1]), reverse=True)
             for i, (k, v) in enumerate(items):
                 if i == 0:
-                    color = Fore.LIGHTRED_EX
+                    color = RED
                 elif i == len(items) - 1:
-                    color = Fore.GREEN
+                    color = GREEN
                 else:
-                    color = Fore.WHITE
+                    color = WHITE
                 average = mean(v)
-                string += f"{color}{k}: {' ' * (20 - len(k))}{average:.20f}\n"
-            string += Fore.WHITE
+                string += f"{color}{k}: {' ' * (20 - len(k))}{average:.{accuracy}f}\n"
+            string += WHITE
             print(string)
 
 
@@ -71,9 +74,7 @@ class Polygon():
 
     @property
     def verts(self):
-        if hasattr(self, "_verts"):
-            return self._verts
-        return []
+        return getattr(self, "_verts", [])
 
     @verts.setter
     def verts(self, points):
@@ -81,37 +82,35 @@ class Polygon():
             return
         points = [V(p) for p in points]
         self._verts = points
-        self.update()
 
-    def update(self):
-        self.center = vec_mean(self.verts)
+    def center(self):
+        verts = self.verts
+        return vec_mean(verts) if verts else V((0, 0))
 
     def is_inside(self, point: V) -> bool:
         """Check if a point is inside this polygon"""
+        center = self.center()
         for i, vert in enumerate(self.verts):
-            if intersect_point_tri_2d(point, vert, self.verts[i - 1], self.center):
+            if intersect_point_tri_2d(point, vert, self.verts[i - 1], center):
                 return True
         return False
 
     def as_tris(self, individual=False):
         """Return the tris making up this polygon"""
         points = []
+        add = points.append if individual else points.extend
+        center = self.center()
         for i, vert in enumerate(self.verts):
-            point = [vert, self.verts[i - 1], self.center]
-            if individual:
-                points.append(point)
-                continue
-            points.extend(point)
+            point = [vert, self.verts[i - 1], center]
+            add(point)
         return points
 
     def as_lines(self, individual=False):
         """Return the lines making up the outline of this polygon as a single list"""
         points = []
+        add = points.append if individual else points.extend
         for i, vert in enumerate(self.verts):
-            if individual:
-                points.append([vert, self.verts[i - 1]])
-                continue
-            points.extend([vert, self.verts[i - 1]])
+            add([vert, self.verts[i - 1]])
         return points
 
     def area(self):
@@ -142,7 +141,10 @@ class Polygon():
             nearest = line_vec * t
             dist = (nearest - pnt_vec).length
             distances.append(dist)
-        return min(distances)
+        if distances:
+            return min(distances)
+        else:
+            return 700000000
 
     def bevelled(self, radius=15):
         """Smooth the corners by using bezier interpolation between the last point,
@@ -159,8 +161,8 @@ class Polygon():
 
             # make prev and next vert a set distance away from the current vert
             # in effect, this controls the size of the smoothing
-            prev_vert = to_prev.normalized() * min(radius, to_prev.length - 20) + vert
-            next_vert = to_next.normalized() * min(radius, to_next.length - 20) + vert
+            prev_vert = to_prev.normalized() * min(radius, to_prev.length / radius) + vert
+            next_vert = to_next.normalized() * min(radius, to_next.length / radius) + vert
 
             # Use fewer vertices on angles that need it less
             try:
@@ -332,16 +334,14 @@ def get_alt_node_tree_name(node_tree) -> str:
     return repr(node_tree.id_data).split("'")[1]
 
 
-def view_to_region(context: Context, coords: V) -> V:
+def view_to_region(context: Context, coords: V, as_vector=True) -> V:
     """Convert 2d editor to screen space coordinates"""
-    return V(context.area.regions[3].view2d.view_to_region(coords.x, coords.y, clip=False))
+    return V(context.area.regions[3].view2d.view_to_region(coords[0], coords[1], clip=False))
+    coords = context.area.regions[3].view2d.view_to_region(coords[0], coords[1], clip=False)
+    return V(coords) if as_vector else coords
 
 
-def region_to_view(context: Context, coords: V) -> V:
+def region_to_view(context: Context, coords: V, as_vector=True) -> V:
     """Convert screen space to 2d editor coordinates"""
-    return V(context.area.regions[3].view2d.region_to_view(coords.x, coords.y))
-
-
-def dpifac() -> float:
-    prefs = bpy.context.preferences.system
-    return prefs.dpi * prefs.pixel_size / 72
+    return V(context.area.regions[3].view2d.region_to_view(coords[0], coords[1]))
+    coords = context.area.regions[3].view2d.region_to_view(coords[0], coords[1
