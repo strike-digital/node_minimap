@@ -1,13 +1,15 @@
 import bpy
+import numpy as np
 from math import pi
 from statistics import mean
 from mathutils import Vector as V
 from mathutils.geometry import intersect_point_tri_2d, interpolate_bezier, area_tri
-from bpy.types import NodeTree, Context
+from bpy.types import NodeTree, Context, Area
 from time import perf_counter
 from typing import List
 from collections import deque
 
+# Console text colours
 WHITE = '\033[37m'
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -15,6 +17,8 @@ GREEN = '\033[92m'
 
 class Timer():
     """Class that allows easier timing of sections of code"""
+
+    __slots__ = ["start_times", "end_times", "indeces", "average_of"]
 
     def __init__(self, average_of=20):
         self.start_times = {}
@@ -43,14 +47,14 @@ class Timer():
 
     def print_average(self, name):
         average = mean(self.end_times[name])
-        if self.indeces[name] >= self.average_of - 2:
+        if self.indeces[name] >= self.average_of - 1:
             print(f"{name}: {' ' * (20 - len(name))}{average:.20f}")
         return average
 
     def print_all(self, accuracy=6):
         """Print all active timers with formatting.
         Accuracy is the number of decimal places to display"""
-        if self.indeces[list(self.indeces.keys())[0]] >= self.average_of - 2:
+        if self.indeces[list(self.indeces.keys())[0]] >= self.average_of - 1:
             string = ""
             items = sorted(self.end_times.items(), key=lambda i: mean(i[1]), reverse=True)
             for i, (k, v) in enumerate(items):
@@ -69,8 +73,12 @@ class Timer():
 class Polygon():
     """Helper class to represent a polygon of n points"""
 
+    __slots__ = ["_verts", "color", "active", "tri_len"]
+
     def __init__(self, verts: list[V] = []):
+        self.verts: list[V]
         self.verts = verts
+        self.tri_len = 0
 
     @property
     def verts(self):
@@ -84,47 +92,82 @@ class Polygon():
         self._verts = points
 
     def center(self):
+        """Get the centeroid of this polygon (mean of all points)"""
+        arr = np.array(list(tuple(v) for v in self.verts))
+        length = arr.shape[0]
+        sum_x = np.sum(arr[:, 0])
+        sum_y = np.sum(arr[:, 1])
+        final = V((sum_x / length, sum_y / length))
+        return final
+
+    def bounds(self):
+        # TODO: If I ever use this a lot, convert to numpy
         verts = self.verts
-        return vec_mean(verts) if verts else V((0, 0))
+        v_min = V(100000, 100000)
+        v_max = V(-100000, -100000)
+        for v in verts:
+            v_min = vec_min(v_min, v)
+            v_max = vec_max(v_max, v)
+        return Rectangle(v_min, v_max)
 
     def is_inside(self, point: V) -> bool:
         """Check if a point is inside this polygon"""
+        verts = self.verts
+        # center = verts[0]
         center = self.center()
-        for i, vert in enumerate(self.verts):
-            if intersect_point_tri_2d(point, vert, self.verts[i - 1], center):
+        for i, vert in enumerate(verts):
+            if intersect_point_tri_2d(point, vert, verts[i - 1], center):
                 return True
         return False
 
     def as_tris(self, individual=False):
         """Return the tris making up this polygon"""
+        verts = self.verts
+        if not verts:
+            return []
         points = []
         add = points.append if individual else points.extend
-        center = self.center()
-        for i, vert in enumerate(self.verts):
-            point = [vert, self.verts[i - 1], center]
-            add(point)
+        center = verts[0]
+        for i, vert in enumerate(verts):
+            add([vert, self.verts[i - 1], center])
+        self.tri_len = len(points)
         return points
 
     def as_lines(self, individual=False):
         """Return the lines making up the outline of this polygon as a single list"""
+        # TODO: optimise by using slices
         points = []
         add = points.append if individual else points.extend
-        for i, vert in enumerate(self.verts):
-            add([vert, self.verts[i - 1]])
+        verts = self.verts
+        for i, v1 in enumerate(verts):
+            add([v1, self.verts[i - 1]])
         return points
 
     def area(self):
         area = 0
         for tri in self.as_tris(individual=True):
-            # area += area_tri(*tri)
             area += area_tri(tri[0], tri[1], tri[2])
         return area
+
+    def normals(self):
+        verts = self.verts
+        normals = []
+        append = normals.append
+        for i, v in enumerate(verts):
+            v_prev = verts[i - 1]
+            v_next = verts[(i + 1) % (len(verts))]
+
+            from_prev = (v - v_prev).normalized()
+            from_next = (v - v_next).normalized()
+            append((from_prev + from_next).normalized())
+        return normals
 
     def distance_to_edges(self, point: V, edges: List[List[V]] = None) -> float:
         """Get the minimum distance of a point from a list of edges.
         Code adapted from from: https://www.fundza.com/vectors/point2line/index.html"""
         edges = edges if edges else self.as_lines(individual=True)
         distances = []
+        append = distances.append
         for edge in edges:
             start = edge[0]
             end = edge[1]
@@ -134,23 +177,27 @@ class Polygon():
             line_len = line_vec.length
             line_unitvec = line_vec.normalized()
 
-            pnt_vec_scaled = pnt_vec * 1.0 / line_len
+            try:
+                pnt_vec_scaled = pnt_vec * 1.0 / line_len
+            except ZeroDivisionError:
+                continue
             t = line_unitvec.dot(pnt_vec_scaled)
             t = max(0, min(1, t))
 
             nearest = line_vec * t
             dist = (nearest - pnt_vec).length
-            distances.append(dist)
+            append(dist)
         if distances:
             return min(distances)
         else:
             return 700000000
 
-    def bevelled(self, radius=15):
+    def bevelled(self, radius=15, min_res=3, max_res=6):
         """Smooth the corners by using bezier interpolation between the last point,
         the current point and the next point."""
         bevelled = []
         verts = self.verts
+        extend = bevelled.extend
         for i, vert in enumerate(verts):
             vert = V(vert)
             prev_vert = V(verts[i - 1])
@@ -171,14 +218,13 @@ class Polygon():
                 # This happens very rarely when there is a zero length vector
                 print("zero length")
                 continue
-            res = max(int((pi - angle) * 6), 2)
+            res = int(map_range(pi - angle, from_min=0, from_max=pi / 2, to_min=min_res, to_max=max_res))
 
             # interpolate points
             points = interpolate_bezier(prev_vert, vert, vert, next_vert, res)
-            bevelled.extend(points)
+            extend(points)
 
         return Polygon(bevelled)
-        # self.verts = bevelled
 
     def __str__(self):
         return f"Polygon({self.verts})"
@@ -189,6 +235,8 @@ class Polygon():
 
 class Rectangle():
     """Helper class to represent a rectangle"""
+
+    __slots__ = ["min", "max"]
 
     def __init__(self, min_co=(0, 0), max_co=(0, 0)):
         min_co = V(min_co)
@@ -205,7 +253,7 @@ class Rectangle():
 
     @property
     def coords(self):
-        """Return corrdinates for drawing"""
+        """Return coordinates for drawing"""
         coords = [
             (self.minx, self.miny),
             (self.maxx, self.miny),
@@ -218,6 +266,7 @@ class Rectangle():
     def size(self):
         return self.max - self.min
 
+    # FIXME: This can just be changed to using vec_mean of the min and max
     @property
     def center(self):
         return self.min + vec_divide(self.max - self.min, V((2, 2)))
@@ -251,15 +300,22 @@ class Rectangle():
 
     def isinside(self, point) -> bool:
         """Check if a point is inside this rectangle"""
-        point = V(point)
+        point = point
         min = self.true_min
         max = self.true_max
-        for i in range(2):
-            if (point[i] < min[i]) or (point[i] > max[i]):
-                return False
-        return True
+        return min.x <= point[0] <= max.x and min.y <= point[1] <= max.y
+
+    def as_lines(self, individual=False):
+        """Return a list of lines that make up this rectangle"""
+        lines = []
+        add = lines.append if individual else lines.extend
+        coords = self.coords
+        for i, coord in enumerate(coords):
+            add((coord, coords[i - 1]))
+        return lines
 
     def crop(self, rectangle):
+        """Crop this rectangle to the inside of another one"""
         self.min = vec_max(self.min, rectangle.min)
         self.max = vec_min(self.max, rectangle.max)
         # prevent min/max overspilling on other side
@@ -299,7 +355,32 @@ def vec_max(a, b) -> V:
 
 def vec_mean(vectors: list[V]) -> V:
     """Elementwise mean for a list of vectors"""
-    return V((mean(v.x for v in vectors), mean(v.y for v in vectors)))
+    arr = np.array(list(tuple(v) for v in vectors))
+    length = arr.shape[0]
+    sum_x = np.sum(arr[:, 0])
+    sum_y = np.sum(arr[:, 1])
+    final = V((sum_x / length, sum_y / length))
+    return final
+    # return V((mean(v.x for v in vectors), mean(v.y for v in vectors)))
+
+
+def map_range(val, from_min=0, from_max=1, to_min=0, to_max=2):
+    """Map a value from one input range to another. Works in the same way as the map range node in blender.
+    succinct formula from: https://stackoverflow.com/a/45389903"""
+    return (val - from_min) / (from_max - from_min) * (to_max - to_min) + to_min
+
+
+def get_uid(other_uids):
+    """Get a unique value given a list of other values."""
+    if not isinstance(other_uids, set):
+        # Faster to find items in sets rather than lists
+        other_uids = set(other_uids)
+    i = 0
+    while i < 1000:
+        if i not in other_uids:
+            break
+        i += 1
+    return i
 
 
 def get_active_tree(context, area=None) -> NodeTree:
@@ -334,14 +415,18 @@ def get_alt_node_tree_name(node_tree) -> str:
     return repr(node_tree.id_data).split("'")[1]
 
 
-def view_to_region(context: Context, coords: V, as_vector=True) -> V:
+def view_to_region(area: Area, coords: V) -> V:
     """Convert 2d editor to screen space coordinates"""
-    return V(context.area.regions[3].view2d.view_to_region(coords[0], coords[1], clip=False))
-    coords = context.area.regions[3].view2d.view_to_region(coords[0], coords[1], clip=False)
-    return V(coords) if as_vector else coords
+    coords = area.regions[3].view2d.view_to_region(coords[0], coords[1], clip=False)
+    return V(coords)
 
 
-def region_to_view(context: Context, coords: V, as_vector=True) -> V:
+def region_to_view(area: Area, coords: V) -> V:
     """Convert screen space to 2d editor coordinates"""
-    return V(context.area.regions[3].view2d.region_to_view(coords[0], coords[1]))
-    coords = context.area.regions[3].view2d.region_to_view(coords[0], coords[1
+    coords = area.regions[3].view2d.region_to_view(coords[0], coords[1])
+    return V(coords)
+
+
+def dpifac() -> float:
+    prefs = bpy.context.preferences.system
+    return prefs.dpi * prefs.pixel_size / 72
