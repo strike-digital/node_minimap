@@ -1,11 +1,14 @@
 from __future__ import annotations
 import gpu
-from mathutils import Vector as V
+
+from pathlib import Path
 from gpu.types import GPUBatch
-from gpu_extras.batch import batch_for_shader
-from bpy.types import Area
 from typing import TYPE_CHECKING
+from mathutils import Vector as V
+from bpy.types import Area, Event, KeyMapItem
+from gpu_extras.batch import batch_for_shader
 from .helpers import Rectangle, vec_divide, vec_min, vec_max
+
 if TYPE_CHECKING:
     from .preferences import NodeExtrasPrefs
 
@@ -16,15 +19,31 @@ sh_2d_uni_bind = sh_2d_uni.bind
 sh_2d_flat = gpu.shader.from_builtin("2D_FLAT_COLOR")
 sh_2d_flat_bind = sh_2d_flat.bind
 
-# shader_file = Path(__file__).parent / "rounded_rectangle_vert.glsl"
-# with open(shader_file, "r") as f:
-#     vertex_shader = f.read()
 
-# shader_file = Path(__file__).parent / "rounded_rectangle_frag.glsl"
-# with open(shader_file, "r") as f:
-#     fragment_shader = f.read()
+def load_shader(frag_path: Path, vert_path: Path, geom_path: Path = "") -> gpu.types.GPUShader:
+    """Creates a shader from a fragment and vertex glsl file"""
+    paths = [Path(frag_path), Path(vert_path)]
+    if geom_path:
+        paths.append(Path(geom_path))
+    shader_texts = []
 
-# shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+    for path in paths:
+        if not path.is_absolute():
+            path = Path(__file__).parents[1] / path
+        with open(path, "r") as f:
+            lines = f.readlines()
+            text = ""
+            for line in lines:
+                if "#version" not in line:
+                    text += line
+            shader_texts.append(text)
+    vert_shader = shader_texts[0]
+    frag_shader = shader_texts[1]
+    if len(shader_texts) == 3:
+        geom_shader = shader_texts[2]
+        return gpu.types.GPUShader(vert_shader, frag_shader, geocode=geom_shader)
+    else:
+        return gpu.types.GPUShader(vert_shader, frag_shader)
 
 
 # graciously stolen from the amazing code_editor addon
@@ -254,6 +273,25 @@ def pos_to_fac(coords, node_area) -> V:
     return fac
 
 
+def compare_event_to_kmis(event: Event, kmis: set[KeyMapItem]) -> bool:
+    """Compares an event to a list of key map items and checks whether any of them match"""
+    attrs = ["type", "ctrl", "shift", "alt"]
+    event_attrs = [getattr(event, attr) for attr in attrs]
+    for kmi in kmis:
+        for attr, event_attr in zip(attrs, event_attrs):
+            kmi_attr = getattr(kmi, attr)
+            if kmi_attr == -1:
+                continue
+            if isinstance(kmi_attr, int):
+                kmi_attr = bool(kmi_attr)
+            if kmi_attr != event_attr:
+                # print(kmi_attr, event_attr)
+                break
+        else:
+            return kmi
+    return False
+
+
 def get_node_area(node_tree) -> Rectangle:
     """Returns a rectangle that goes from the minimum x and y of the nodes in the tree to the maximum x and y"""
     node_area = Rectangle((10000, 10000), (-1000, -1000))
@@ -266,9 +304,22 @@ def get_node_area(node_tree) -> Rectangle:
     return node_area
 
 
-def get_area(self, context) -> Area:
+def get_active_area(context, mouse_pos, area_type) -> Area:
     """The default operator context doesn't update when the mouse moves,
     so this works out the active area from scratch"""
+    for area in context.screen.areas:
+        if area.type == area_type:
+            area_rect = Rectangle(
+                (area.x, area.y),
+                (area.x + area.width, area.y + area.height),
+            )
+            if area_rect.isinside(mouse_pos):
+                return area
+    return None
+
+
+def get_area(self, context) -> Area:
+    """Get the area for this node tree"""
     for area in context.screen.areas:
         if str(area) == self.area:
             return area

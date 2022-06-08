@@ -70,7 +70,7 @@ def unregister():
 
 
 def get_all_submodules(directory):
-    return list(iter_submodules(directory, directory.name))
+    return [m for m in list(iter_submodules(directory, directory.name)) if not hasattr(m, "dont_register")]
 
 
 def iter_submodules(path, package_name):

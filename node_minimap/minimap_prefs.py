@@ -40,10 +40,12 @@ class MinimapAddonPrefs():
 
     icons = icon_collections["icons"]
 
-    minimap_section_enabled: BoolProperty(name="Minimap enabled",
-                                          description="Whether to enable the minimap section",
-                                          default=True,
-                                          update=minimap_section_enabled_update)
+    minimap_section_enabled: BoolProperty(
+        name="Minimap enabled",
+        description="Whether to enable the minimap section",
+        default=True,
+        update=minimap_section_enabled_update,
+    )
 
     # GENERAL
     enable_on_load: BoolProperty(
@@ -133,7 +135,7 @@ the location of these nodes from the python api, so if this is on, they may appe
     max_size: IntProperty(
         name="Max size",
         description="The maximum size in pixels that the minimap can be",
-        default=1000,
+        default=250,
         min=0,
         update=update_minimap,
         subtype="PIXEL",

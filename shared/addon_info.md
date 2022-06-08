@@ -9,4 +9,4 @@ Then all of their preferences will be shown on different pages, and all icons wi
 
 Currently, these are the addons I have made that are compatible with this:
 * Node minimap
-* Better frames (not released)
+* Poly frames (not released)

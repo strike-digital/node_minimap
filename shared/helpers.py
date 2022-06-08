@@ -2,12 +2,13 @@ import bpy
 import numpy as np
 from math import pi
 from statistics import mean
+from dataclasses import dataclass
 from mathutils import Vector as V
 from mathutils.geometry import intersect_point_tri_2d, interpolate_bezier, area_tri
-from bpy.types import NodeTree, Context, Area
+from bpy.types import NodeTree, Area, Operator
 from time import perf_counter
 from typing import List
-from collections import deque
+from collections import deque, OrderedDict
 
 # Console text colours
 WHITE = '\033[37m'
@@ -16,13 +17,15 @@ GREEN = '\033[92m'
 
 
 class Timer():
-    """Class that allows easier timing of sections of code"""
+    """Class that allows easier timing of sections of code.
+    This is by no means especially smart, but I couldn't find anything similar
+    that is as easy to use."""
 
     __slots__ = ["start_times", "end_times", "indeces", "average_of"]
 
     def __init__(self, average_of=20):
         self.start_times = {}
-        self.end_times = {}
+        self.end_times = OrderedDict()
         self.indeces = {}
         self.average_of = average_of
 
@@ -54,7 +57,7 @@ class Timer():
     def print_all(self, accuracy=6):
         """Print all active timers with formatting.
         Accuracy is the number of decimal places to display"""
-        if self.indeces[list(self.indeces.keys())[0]] >= self.average_of - 1:
+        if self.indeces[list(self.indeces.keys())[-1]] >= self.average_of - 1:
             string = ""
             items = sorted(self.end_times.items(), key=lambda i: mean(i[1]), reverse=True)
             for i, (k, v) in enumerate(items):
@@ -133,7 +136,7 @@ class Polygon():
         self.tri_len = len(points)
         return points
 
-    def as_lines(self, individual=False):
+    def as_lines(self, individual=False) -> list[list[V]]:
         """Return the lines making up the outline of this polygon as a single list"""
         # TODO: optimise by using slices
         points = []
@@ -323,6 +326,124 @@ class Rectangle():
         self.max = vec_max(self.max, rectangle.min)
 
 
+@dataclass
+class Op():
+    """A decorator for defining blender Operators that helps to cut down on boilerplate code,
+    and adds better functionality for autocomplete.
+    To use it, add it as a decorator to the operator class, with whatever arguments you want.
+    The only required argument is the category of the operator,
+    and the rest can be inferred from the class name and __doc__.
+    This works best for operators that use the naming convension ADDON_NAME_OT_operator_name.
+
+    Args:
+        `category` (str): The first part of the name used to call the operator (e.g. "object" in "object.select_all").
+        `idname` (str): The second part of the name used to call the operator (e.g. "select_all" in "object.select_all")
+        `label` (str): The name of the operator that is displayed in the UI.
+        `description` (str): The description of the operator that is displayed in the UI.
+        `register` (bool): Whether to display the operator in the info window and support the redo panel.
+        `undo_push` (bool): Whether to push an undo step after the operator is executed.
+        `undo_push_grouped` (bool): Whether to group multiple consecutive executions of the operator into one undo step.
+        `internal` (bool): Whether the operator is only used internally and should not be shown in menu search
+            (doesn't affect the operator search accessible when developer extras is enabled).
+        `wrap_cursor` (bool): Whether to wrap the cursor to the other side of the region when it goes outside of it.
+        `wrap_cursor_x` (bool): Only wrap the cursor in the horizontal (x) direction.
+        `wrap_cursor_y` (bool): Only wrap the cursor in the horizontal (y) direction.
+        `preset` (bool): Display a preset button with the operators settings.
+        `blocking` (bool): Block anything else from using the cursor.
+        `macro` (bool): Use to check if an operator is a macro.
+        `logging` (int | bool): Whether to log when this operator is called.
+            Default is to use the class logging variable which can be set with set_logging() and is global.
+    """
+
+    _logging = False
+
+    @classmethod
+    def set_logging(cls, enable):
+        """Set the global logging state for all operators"""
+        cls._logging = enable
+
+    category: str
+    idname: str = ""
+    label: str = ""
+    description: str = ""
+    invoke: bool = True
+    register: bool = True
+    undo_push: bool = False
+    undo_push_grouped: bool = False
+    internal: bool = False
+    wrap_cursor: bool = False
+    wrap_cursor_x: bool = False
+    wrap_cursor_y: bool = False
+    preset: bool = False
+    blocking: bool = False
+    macro: bool = False
+    # The default is to use the class logging setting, unless this has a value other than -1.
+    # ik this is the same name as the module, but I don't care.
+    logging: int = -1
+
+    def __call__(self, cls):
+        """This takes the decorated class and populate's the bl_ attributes with either the supplied values,
+        or a best guess based on the other values"""
+
+        cls_name_end = cls.__name__.split("OT_")[-1]
+        idname = self.category + "." + (self.idname if self.idname else cls_name_end)
+
+        if self.label:
+            label = self.label
+        else:
+            label = cls_name_end.replace("_", " ").title()
+
+        if self.description:
+            description = self.description
+        elif cls.__doc__:
+            description = cls.__doc__
+        else:
+            description = label
+
+        options = {
+            "REGISTER": self.register,
+            "UNDO": self.undo_push,
+            "UNDO_GROUPED": self.undo_push_grouped,
+            "GRAB_CURSOR": self.wrap_cursor,
+            "GRAB_CURSOR_X": self.wrap_cursor_x,
+            "GRAB_CURSOR_Y": self.wrap_cursor_y,
+            "BLOCKING": self.blocking,
+            "INTERNAL": self.internal,
+            "PRESET": self.preset,
+            "MACRO": self.macro,
+        }
+        options = {k for k, v in options.items() if v}
+
+        if hasattr(cls, "bl_options"):
+            options = options.union(cls.bl_options)
+
+        if self.logging == -1:
+            log = self._logging
+        else:
+            log = bool(self.logging)
+
+        class Wrapped(cls, Operator):
+            bl_idname = idname
+            bl_label = label
+            bl_description = description
+            bl_options = options
+
+            if self.invoke:
+                def invoke(_self, context, event):
+                    """Here we can log whenever an operator using this decorator is invoked"""
+                    if log:
+                        # I could use the actual logging module here, but I can't be bothered.
+                        print(f"Invoke: {idname}")
+                    if hasattr(super(), "invoke"):
+                        return super().invoke(context, event)
+                    else:
+                        return _self.execute(context)
+
+        Wrapped.__doc__ = description
+        Wrapped.__name__ = cls.__name__
+        return Wrapped
+
+
 def lerp(fac, a, b) -> float:
     """Linear interpolation (mix) between two values"""
     return (fac * b) + ((1 - fac) * a)
@@ -354,14 +475,12 @@ def vec_max(a, b) -> V:
 
 
 def vec_mean(vectors: list[V]) -> V:
-    """Elementwise mean for a list of vectors"""
+    """Get the mean of a list of vectors"""
     arr = np.array(list(tuple(v) for v in vectors))
     length = arr.shape[0]
     sum_x = np.sum(arr[:, 0])
     sum_y = np.sum(arr[:, 1])
-    final = V((sum_x / length, sum_y / length))
-    return final
-    # return V((mean(v.x for v in vectors), mean(v.y for v in vectors)))
+    return V((sum_x / length, sum_y / length))
 
 
 def map_range(val, from_min=0, from_max=1, to_min=0, to_max=2):
@@ -428,5 +547,6 @@ def region_to_view(area: Area, coords: V) -> V:
 
 
 def dpifac() -> float:
+    """Taken from Node Wrangler. Not sure exacly why it works, but it is needed to get the visual position of nodes"""
     prefs = bpy.context.preferences.system
-    return prefs.dpi * prefs.pixel_size / 72
+    return prefs.dpi * prefs.pixel_size / 72  # Why 72?
