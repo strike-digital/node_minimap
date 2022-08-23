@@ -39,6 +39,7 @@ class NodeExtrasPrefs(bpy.types.AddonPreferences, *all_prefs):
 
     prefs_page: EnumProperty(items=get_pages)
     layout: bpy.types.UILayout
+    is_single = len(all_prefs) == 1
 
     def draw(self, context):
         """Draw the preferences of sub addons as separate pages"""

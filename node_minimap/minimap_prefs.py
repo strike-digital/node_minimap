@@ -1,5 +1,6 @@
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatVectorProperty, FloatProperty, IntProperty, IntVectorProperty
+from bpy.props import BoolProperty, EnumProperty, FloatVectorProperty, FloatProperty, IntProperty, IntVectorProperty,\
+    BoolVectorProperty
 from . import operators
 from ..shared.functions import get_prefs
 from .minimap_functions import get_minimap_cache, get_shader_cache
@@ -269,12 +270,15 @@ the location of these nodes from the python api, so if this is on, they may appe
         subtype="PIXEL",
     )
 
-    # PAGES
-    page: EnumProperty(items=(
-        ("0", "1", "View page 1"),
-        ("1", "2", "View page 2"),
-        # ("2", "2", "View page 2"),
-    ))
+    sections = 6
+    show_sections: BoolVectorProperty(
+        name="Show section",
+        description="whether to show each section",
+        default=[True] * sections,
+        size=sections,
+    )
+
+    show_index = 0
 
     # INTERNAL
 
@@ -284,11 +288,11 @@ the location of these nodes from the python api, so if this is on, they may appe
         layout = self.layout
         layout: bpy.types.UILayout
         is_prefs = issubclass(self.__class__, bpy.types.AddonPreferences)
+        self.show_index = 0
 
         if is_prefs:
             layout = draw_enabled_button(layout, self, "minimap_section_enabled")
         prefs = get_prefs(context)  # can't use self because draw function is also used by a panel
-        page = int(prefs.page)
 
         row = layout.row(align=True)
         icons = icon_collections["icons"]
@@ -302,66 +306,59 @@ the location of these nodes from the python api, so if this is on, they may appe
             icon_value = icons["enable on load.png"].icon_id
             row.prop(prefs, "enable_on_load", text="", icon_value=icon_value, toggle=True)
 
-            grid = layout.grid_flow(row_major=True, even_columns=True)
-            box = grid.box()
-            row = box.row(align=True)
-            row.alignment = "CENTER"
-            row.scale_x = 0.75
-            row.prop(prefs, "page", expand=True)
-            layout.separator(factor=factor)
-
         # Grid flow allows the UI to adapt to areas of different widths.
-        layout = layout.grid_flow(row_major=True, even_columns=True)
+        layout = layout.grid_flow(row_major=True, even_columns=True, columns=0 if is_prefs else 1)
 
-        if page == 0 or is_prefs:
-            factor = 0.9
-            col = draw_section(layout, title="General")
-            draw_inline_prop(col, prefs, "enable_on_load", "Auto enable", factor=factor, alignment="LEFT")
-            draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
-            draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
-            draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
-            if context.area.type == "NODE_EDITOR" and len(context.space_data.node_tree.nodes) > 100\
-                and prefs.zoom_to_nodes and context.space_data.node_tree.type == "GEOMETRY":
-                row = col.row(align=True)
-                box = col.box().column(align=True)
-                row.alert = True
-                box.label(text="This node tree has more than 100")
-                box.label(text="nodes, evaluation may be slow")
-            else:
-                row = col.row(align=True)
-            draw_inline_prop(row, prefs, "zoom_to_nodes", factor=factor, alignment="LEFT")
+        show_args = {"show_data": prefs, "show_prop": "show_sections", "index_prop": "show_index"}
+        show_args = {} if is_prefs else show_args
 
-            col = draw_section(layout, title="Shape")
-            factor = 0.3
-            draw_inline_prop(col, prefs, "anchor_corner", factor=factor)
-            draw_inline_prop(col, prefs, "size", "Scale", factor=factor)
-            sub = draw_inline_prop(col, prefs, "min_size", "Size", prop_text="Min", factor=factor)
-            sub.prop(prefs, "max_size", text="Max")
-            draw_inline_prop(col, prefs, "offset", "Offset", factor=factor)
+        col = draw_section(layout, "General", **show_args)
+        factor = 0.9
+        draw_inline_prop(col, prefs, "enable_on_load", "Auto enable", factor=factor, alignment="LEFT")
+        draw_inline_prop(col, prefs, "only_top_level", factor=factor, alignment="LEFT")
+        draw_inline_prop(col, prefs, "show_non_frames", factor=factor, alignment="LEFT")
+        draw_inline_prop(col, prefs, "show_non_full_frames", factor=factor, alignment="LEFT")
+        if context.area.type == "NODE_EDITOR" and len(context.space_data.node_tree.nodes) > 100\
+            and prefs.zoom_to_nodes and context.space_data.node_tree.type == "GEOMETRY":
+            row = col.row(align=True)
+            box = col.box().column(align=True)
+            row.alert = True
+            box.label(text="This node tree has more than 100")
+            box.label(text="nodes, evaluation may be slow")
+        else:
+            row = col.row(align=True)
+        draw_inline_prop(row, prefs, "zoom_to_nodes", factor=factor, alignment="LEFT")
 
-            col = draw_section(layout, title="Look")
-            draw_inline_prop(col, prefs, "line_width")
-            draw_inline_prop(col, prefs, "outline_color")
-            draw_inline_prop(col, prefs, "view_outline_color")
-            draw_inline_prop(col, prefs, "background_color", "Background")
-            draw_inline_prop(col, prefs, "node_transparency")
-            draw_inline_prop(col, prefs, "use_node_colors", "One node color", invert=True)
-            if not prefs.use_node_colors:
-                draw_inline_prop(col, prefs, "node_color")
+        col = draw_section(layout, title="Shape", **show_args)
+        factor = 0.3
+        draw_inline_prop(col, prefs, "anchor_corner", factor=factor)
+        draw_inline_prop(col, prefs, "size", "Scale", factor=factor)
+        sub = draw_inline_prop(col, prefs, "min_size", "Size", prop_text="Min", factor=factor)
+        sub.prop(prefs, "max_size", text="Max")
+        draw_inline_prop(col, prefs, "offset", "Offset", factor=factor)
 
-        if page == 1 or is_prefs:
-            col = draw_section(layout, title="Labels")
-            draw_inline_prop(col, prefs, "show_labels")
-            if prefs.show_labels:
-                draw_inline_prop(col, prefs, "text_wrap")
-                draw_inline_prop(col, prefs, "text_color")
-                draw_inline_prop(col, prefs, "min_frame_size")
+        col = draw_section(layout, title="Look", **show_args)
+        draw_inline_prop(col, prefs, "line_width")
+        draw_inline_prop(col, prefs, "outline_color")
+        draw_inline_prop(col, prefs, "view_outline_color")
+        draw_inline_prop(col, prefs, "background_color", "Background")
+        draw_inline_prop(col, prefs, "node_transparency")
+        draw_inline_prop(col, prefs, "use_node_colors", "One node color", invert=True)
+        if not prefs.use_node_colors:
+            draw_inline_prop(col, prefs, "node_color")
 
-            col = draw_section(layout, title="Controls")
-            col.label(text="Click and drag to pan the view")
-            col.label(text="Double click to view all")
-            if prefs.zoom_to_nodes:
-                col.label(text="Click on a node to zoom to it")
+        col = draw_section(layout, title="Labels", **show_args)
+        draw_inline_prop(col, prefs, "show_labels")
+        if prefs.show_labels:
+            draw_inline_prop(col, prefs, "text_wrap")
+            draw_inline_prop(col, prefs, "text_color")
+            draw_inline_prop(col, prefs, "min_frame_size")
+
+        col = draw_section(layout, title="Controls", **show_args)
+        col.label(text="Click and drag to pan the view")
+        col.label(text="Double click to view all")
+        if prefs.zoom_to_nodes:
+            col.label(text="Click on a node to zoom to it")
 
 
 @bpy.app.handlers.persistent

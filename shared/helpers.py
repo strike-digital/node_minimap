@@ -73,169 +73,6 @@ class Timer():
             print(string)
 
 
-class Polygon():
-    """Helper class to represent a polygon of n points"""
-
-    __slots__ = ["_verts", "color", "active", "tri_len"]
-
-    def __init__(self, verts: list[V] = []):
-        self.verts: list[V]
-        self.verts = verts
-        self.tri_len = 0
-
-    @property
-    def verts(self):
-        return getattr(self, "_verts", [])
-
-    @verts.setter
-    def verts(self, points):
-        if not points:
-            return
-        points = [V(p) for p in points]
-        self._verts = points
-
-    def center(self):
-        """Get the centeroid of this polygon (mean of all points)"""
-        arr = np.array(list(tuple(v) for v in self.verts))
-        length = arr.shape[0]
-        sum_x = np.sum(arr[:, 0])
-        sum_y = np.sum(arr[:, 1])
-        final = V((sum_x / length, sum_y / length))
-        return final
-
-    def bounds(self):
-        # TODO: If I ever use this a lot, convert to numpy
-        verts = self.verts
-        v_min = V(100000, 100000)
-        v_max = V(-100000, -100000)
-        for v in verts:
-            v_min = vec_min(v_min, v)
-            v_max = vec_max(v_max, v)
-        return Rectangle(v_min, v_max)
-
-    def is_inside(self, point: V) -> bool:
-        """Check if a point is inside this polygon"""
-        verts = self.verts
-        # center = verts[0]
-        center = self.center()
-        for i, vert in enumerate(verts):
-            if intersect_point_tri_2d(point, vert, verts[i - 1], center):
-                return True
-        return False
-
-    def as_tris(self, individual=False):
-        """Return the tris making up this polygon"""
-        verts = self.verts
-        if not verts:
-            return []
-        points = []
-        add = points.append if individual else points.extend
-        center = verts[0]
-        for i, vert in enumerate(verts):
-            add([vert, self.verts[i - 1], center])
-        self.tri_len = len(points)
-        return points
-
-    def as_lines(self, individual=False) -> list[list[V]]:
-        """Return the lines making up the outline of this polygon as a single list"""
-        # TODO: optimise by using slices
-        points = []
-        add = points.append if individual else points.extend
-        verts = self.verts
-        for i, v1 in enumerate(verts):
-            add([v1, self.verts[i - 1]])
-        return points
-
-    def area(self):
-        area = 0
-        for tri in self.as_tris(individual=True):
-            area += area_tri(tri[0], tri[1], tri[2])
-        return area
-
-    def normals(self):
-        verts = self.verts
-        normals = []
-        append = normals.append
-        for i, v in enumerate(verts):
-            v_prev = verts[i - 1]
-            v_next = verts[(i + 1) % (len(verts))]
-
-            from_prev = (v - v_prev).normalized()
-            from_next = (v - v_next).normalized()
-            append((from_prev + from_next).normalized())
-        return normals
-
-    def distance_to_edges(self, point: V, edges: List[List[V]] = None) -> float:
-        """Get the minimum distance of a point from a list of edges.
-        Code adapted from from: https://www.fundza.com/vectors/point2line/index.html"""
-        edges = edges if edges else self.as_lines(individual=True)
-        distances = []
-        append = distances.append
-        for edge in edges:
-            start = edge[0]
-            end = edge[1]
-
-            line_vec = start - end
-            pnt_vec = start - point
-            line_len = line_vec.length
-            line_unitvec = line_vec.normalized()
-
-            try:
-                pnt_vec_scaled = pnt_vec * 1.0 / line_len
-            except ZeroDivisionError:
-                continue
-            t = line_unitvec.dot(pnt_vec_scaled)
-            t = max(0, min(1, t))
-
-            nearest = line_vec * t
-            dist = (nearest - pnt_vec).length
-            append(dist)
-        if distances:
-            return min(distances)
-        else:
-            return 700000000
-
-    def bevelled(self, radius=15, min_res=3, max_res=6):
-        """Smooth the corners by using bezier interpolation between the last point,
-        the current point and the next point."""
-        bevelled = []
-        verts = self.verts
-        extend = bevelled.extend
-        for i, vert in enumerate(verts):
-            vert = V(vert)
-            prev_vert = V(verts[i - 1])
-            next_vert = V(verts[(i + 1) % len(verts)])
-
-            to_prev = prev_vert - vert
-            to_next = next_vert - vert
-
-            # make prev and next vert a set distance away from the current vert
-            # in effect, this controls the size of the smoothing
-            prev_vert = to_prev.normalized() * min(radius, to_prev.length / radius) + vert
-            next_vert = to_next.normalized() * min(radius, to_next.length / radius) + vert
-
-            # Use fewer vertices on angles that need it less
-            try:
-                angle = to_prev.angle(to_next)
-            except ValueError:
-                # This happens very rarely when there is a zero length vector
-                print("zero length")
-                continue
-            res = int(map_range(pi - angle, from_min=0, from_max=pi / 2, to_min=min_res, to_max=max_res))
-
-            # interpolate points
-            points = interpolate_bezier(prev_vert, vert, vert, next_vert, res)
-            extend(points)
-
-        return Polygon(bevelled)
-
-    def __str__(self):
-        return f"Polygon({self.verts})"
-
-    def __repr__(self):
-        return self.__str__()
-
-
 class Rectangle():
     """Helper class to represent a rectangle"""
 
@@ -326,6 +163,172 @@ class Rectangle():
         self.max = vec_max(self.max, rectangle.min)
 
 
+class Polygon():
+    """Helper class to represent a polygon of n points"""
+
+    __slots__ = ["_verts", "color", "active", "tri_len"]
+
+    def __init__(self, verts: list[V] = []):
+        self.verts: list[V]
+        self.verts = verts
+        self.tri_len = 0
+
+    @property
+    def verts(self):
+        return getattr(self, "_verts", [])
+
+    @verts.setter
+    def verts(self, points):
+        if not points:
+            return
+        points = [V(p) for p in points]
+        self._verts = points
+
+    def center(self) -> V:
+        """Get the centeroid of this polygon (mean of all points)"""
+        arr = np.array(list(tuple(v) for v in self.verts))
+        length = arr.shape[0]
+        sum_x = np.sum(arr[:, 0])
+        sum_y = np.sum(arr[:, 1])
+        final = V((sum_x / length, sum_y / length))
+        return final
+
+    def bounds(self) -> Rectangle:
+        """Return a rectangle representing the bounding box of the polygon"""
+        # TODO: If I ever use this a lot, convert to numpy
+        verts = self.verts
+        v_min = V(100000, 100000)
+        v_max = V(-100000, -100000)
+        for v in verts:
+            v_min = vec_min(v_min, v)
+            v_max = vec_max(v_max, v)
+        return Rectangle(v_min, v_max)
+
+    def is_inside(self, point: V) -> bool:
+        """Check if a point is inside this polygon"""
+        verts = self.verts
+        # center = verts[0]
+        center = self.center()
+        for i, vert in enumerate(verts):
+            if intersect_point_tri_2d(point, vert, verts[i - 1], center):
+                return True
+        return False
+
+    def as_tris(self, individual:bool = False) -> list[V]:
+        """Return the tris making up this polygon"""
+        verts = self.verts
+        if not verts:
+            return []
+        points = []
+        add = points.append if individual else points.extend
+        center = verts[0]
+        for i, vert in enumerate(verts):
+            add([vert, self.verts[i - 1], center])
+        self.tri_len = len(points)
+        return points
+
+    def as_lines(self, individual=False) -> list[list[V]]:
+        """Return the lines making up the outline of this polygon as a single list"""
+        # TODO: optimise by using slices
+        points = []
+        add = points.append if individual else points.extend
+        verts = self.verts
+        for i, v1 in enumerate(verts):
+            add([v1, self.verts[i - 1]])
+        return points
+
+    def area(self) -> float:
+        """Return the total area of this polygon"""
+        area = 0
+        for tri in self.as_tris(individual=True):
+            area += area_tri(tri[0], tri[1], tri[2])
+        return area
+
+    def normals(self) -> list[V]:
+        """Return a list containing the normal direction of each point"""
+        verts = self.verts
+        normals = []
+        append = normals.append
+        for i, v in enumerate(verts):
+            v_prev = verts[i - 1]
+            v_next = verts[(i + 1) % (len(verts))]
+
+            from_prev = (v - v_prev).normalized()
+            from_next = (v - v_next).normalized()
+            append((from_prev + from_next).normalized())
+        return normals
+
+    def distance_to_edges(self, point: V, edges: List[List[V]] = None) -> float:
+        """Get the minimum distance of a point from a list of edges.
+        Code adapted from from: https://www.fundza.com/vectors/point2line/index.html"""
+        edges = edges if edges else self.as_lines(individual=True)
+        distances = []
+        append = distances.append
+        for edge in edges:
+            start = edge[0]
+            end = edge[1]
+
+            line_vec = start - end
+            pnt_vec = start - point
+            line_len = line_vec.length
+            line_unitvec = line_vec.normalized()
+
+            try:
+                pnt_vec_scaled = pnt_vec * 1.0 / line_len
+            except ZeroDivisionError:
+                continue
+            t = line_unitvec.dot(pnt_vec_scaled)
+            t = max(0, min(1, t))
+
+            nearest = line_vec * t
+            dist = (nearest - pnt_vec).length
+            append(dist)
+        if distances:
+            return min(distances)
+        else:
+            return 700000000
+
+    def bevelled(self, radius=15, min_res=3, max_res=6):
+        """Smooth the corners by using bezier interpolation between the last point,
+        the current point and the next point."""
+        bevelled = []
+        verts = self.verts
+        extend = bevelled.extend
+        for i, vert in enumerate(verts):
+            vert = V(vert)
+            prev_vert = V(verts[i - 1])
+            next_vert = V(verts[(i + 1) % len(verts)])
+
+            to_prev = prev_vert - vert
+            to_next = next_vert - vert
+
+            # make prev and next vert a set distance away from the current vert
+            # in effect, this controls the size of the smoothing
+            prev_vert = to_prev.normalized() * min(radius, to_prev.length / radius) + vert
+            next_vert = to_next.normalized() * min(radius, to_next.length / radius) + vert
+
+            # Use fewer vertices on angles that need it less
+            try:
+                angle = to_prev.angle(to_next)
+            except ValueError:
+                # This happens very rarely when there is a zero length vector
+                print("zero length")
+                continue
+            res = int(map_range(pi - angle, from_min=0, from_max=pi / 2, to_min=min_res, to_max=max_res))
+
+            # interpolate points
+            points = interpolate_bezier(prev_vert, vert, vert, next_vert, res)
+            extend(points)
+
+        return Polygon(bevelled)
+
+    def __str__(self):
+        return f"Polygon({self.verts})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
 @dataclass
 class Op():
     """A decorator for defining blender Operators that helps to cut down on boilerplate code,
@@ -341,8 +344,8 @@ class Op():
         `label` (str): The name of the operator that is displayed in the UI.
         `description` (str): The description of the operator that is displayed in the UI.
         `register` (bool): Whether to display the operator in the info window and support the redo panel.
-        `undo_push` (bool): Whether to push an undo step after the operator is executed.
-        `undo_push_grouped` (bool): Whether to group multiple consecutive executions of the operator into one undo step.
+        `undo` (bool): Whether to push an undo step after the operator is executed.
+        `undo_grouped` (bool): Whether to group multiple consecutive executions of the operator into one undo step.
         `internal` (bool): Whether the operator is only used internally and should not be shown in menu search
             (doesn't affect the operator search accessible when developer extras is enabled).
         `wrap_cursor` (bool): Whether to wrap the cursor to the other side of the region when it goes outside of it.
@@ -368,8 +371,8 @@ class Op():
     description: str = ""
     invoke: bool = True
     register: bool = True
-    undo_push: bool = False
-    undo_push_grouped: bool = False
+    undo: bool = False
+    undo_grouped: bool = False
     internal: bool = False
     wrap_cursor: bool = False
     wrap_cursor_x: bool = False
@@ -402,8 +405,8 @@ class Op():
 
         options = {
             "REGISTER": self.register,
-            "UNDO": self.undo_push,
-            "UNDO_GROUPED": self.undo_push_grouped,
+            "UNDO": self.undo,
+            "UNDO_GROUPED": self.undo_grouped,
             "GRAB_CURSOR": self.wrap_cursor,
             "GRAB_CURSOR_X": self.wrap_cursor_x,
             "GRAB_CURSOR_Y": self.wrap_cursor_y,
@@ -447,6 +450,11 @@ class Op():
 def lerp(fac, a, b) -> float:
     """Linear interpolation (mix) between two values"""
     return (fac * b) + ((1 - fac) * a)
+
+
+def inv_lerp(fac, a, b) -> float:
+    """Inverse Linar Interpolation, get the fraction between a and b on which fac resides."""
+    return (fac - a) / (b - a)
 
 
 def vec_lerp(fac, a, b) -> V:

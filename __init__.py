@@ -31,7 +31,7 @@ bl_info = {
     "author": "Andrew Stevenson",
     "description": "Adds a minimap to the corner of the node editor",
     "blender": (3, 0, 0),
-    "version": (1, 4, 0),
+    "version": (0, 0, 1),
     "location": "Node editor > Header",
     "category": "Node"
 }
