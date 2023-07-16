@@ -105,10 +105,6 @@ class MINIMAP_OT_DrawAreaMinimap(bpy.types.Operator):
         if event.type == "LEFTMOUSE":
 
             # The default operator context doesn't update with the mouse moving, so construct it manually
-            override = bpy.context.copy()
-            override["area"] = area
-            override["space"] = area.spaces[0]
-            override["region"] = area.regions[3]
             # If the minimap is clicked center the view
             # I tried for ages to get dragging the minimap to move the view working,
             # but I couldn't figure out how to move the view predictably without using an operator,
@@ -116,7 +112,8 @@ class MINIMAP_OT_DrawAreaMinimap(bpy.types.Operator):
             if on_minimap and event.value != "RELEASE":
                 # Check for a double click by seeing if there is another mouse click in the most recent events
                 if event.type in self.prev_event_types:
-                    bpy.ops.node.view_all((override))
+                    with context.temp_override(area=area, space=area.spaces[0], region=area.regions[3]):
+                        bpy.ops.node.view_all()
                 context.window.cursor_modal_set("SCROLL_XY")
                 self.is_panning = True
 
@@ -139,7 +136,8 @@ class MINIMAP_OT_DrawAreaMinimap(bpy.types.Operator):
                             for n in node.id_data.nodes:
                                 n.select = False
                             node.select = True
-                            bpy.ops.node.view_selected((override), "EXEC_DEFAULT")
+                            with context.temp_override(area=area, space=area.spaces[0], region=area.regions[3]):
+                                bpy.ops.node.view_selected("EXEC_DEFAULT")
                             break
 
             if event.value == "RELEASE":
@@ -152,14 +150,11 @@ class MINIMAP_OT_DrawAreaMinimap(bpy.types.Operator):
                 del self.prev_events[-1]
 
         if self.is_panning:
-            override = bpy.context.copy()
-            override["area"] = area
-            override["space"] = area.spaces[0]
-            override["region"] = area.regions[3]
             delta = self.mouse_pos - self.prev_mouse_pos
             multiplier = 1 + (1 - prefs.size)
             delta *= multiplier * (self.map_area.size.x / self.view_area.size.x)
-            bpy.ops.view2d.pan((override), deltax=int(delta.x), deltay=int(delta.y))
+            with context.temp_override(area=area, space=area.spaces[0], region=area.regions[3]):
+                bpy.ops.view2d.pan(deltax=int(delta.x), deltay=int(delta.y))
             return {'RUNNING_MODAL'}
         else:
             if on_minimap:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import bpy
 import gpu
 
 from pathlib import Path
@@ -12,11 +13,15 @@ from .helpers import Rectangle, vec_divide, vec_min, vec_max
 if TYPE_CHECKING:
     from .preferences import NodeExtrasPrefs
 
-sh_2d_uni = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+if bpy.app.version < (4, 0, 0):
+    sh_2d_uni = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    sh_2d_flat = gpu.shader.from_builtin("2D_FLAT_COLOR")
+else:
+    sh_2d_uni = gpu.shader.from_builtin('UNIFORM_COLOR')
+    sh_2d_flat = gpu.shader.from_builtin("FLAT_COLOR")
 sh_2d_uniform_float = sh_2d_uni.uniform_float
 sh_2d_uni_bind = sh_2d_uni.bind
 
-sh_2d_flat = gpu.shader.from_builtin("2D_FLAT_COLOR")
 sh_2d_flat_bind = sh_2d_flat.bind
 
 
